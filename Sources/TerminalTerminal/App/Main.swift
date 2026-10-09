@@ -23,15 +23,7 @@ enum TerminalTerminalMain {
             exit(0)
         }
 
-        var demo: Demo?
-        if let flag = arguments.firstIndex(of: "--demo") {
-            let name = flag + 1 < arguments.count ? arguments[flag + 1] : ""
-            guard let scenario = Demo.Scenario(rawValue: name) else {
-                print("Scenarios:", Demo.Scenario.allCases.map(\.rawValue).joined(separator: " "))
-                exit(name.isEmpty ? 0 : 1)
-            }
-            demo = Demo(scenario)
-        }
+        let demo = arguments.contains("--demo") ? Demo() : nil
 
         let app = NSApplication.shared
         let delegate = AppDelegate(demo: demo)

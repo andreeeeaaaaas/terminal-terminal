@@ -1,0 +1,24 @@
+# Stop a server from the board: it ignores SIGTERM, shows DELAYED, and is force quit.
+name: kill-flow
+platform: macos
+app:
+  build: [swift, build]
+  launch: [.build/debug/TerminalTerminal, --demo]
+  cwd: ..
+output:
+  formats: [mov, mp4, gif]
+  captions: burn
+steps:
+  - { at: 0, state: add oceanheroes }
+  - { at: 0, state: add terminal-ui }
+  - { at: 0, state: add backoffice stubborn }
+  - { at: 0, state: start }
+  - { at: 3, hover: "DJANGO backoffice", caption: Hover a row to stop it }
+  - { at: 4.2, click: "Stop DJANGO", note: "click its ×" }
+  - { at: 4.4, expect: "closing", within: 1 }
+  - { at: 7.4, expect: "Force quit", within: 1.5, caption: "Still running after 3 s, so it asks first" }
+  - { at: 8.8, click: "Force quit" }
+  - { at: 9, expect: "departed", within: 2.5 }
+  - { at: 10, caption: "Gone, and the row clears" }
+  - { at: 10.4, hover: { point: [460, 250] }, note: move the pointer off the board }
+  - { at: 16.5, end: true }

@@ -14,8 +14,8 @@ swift run                                     # launch the menu bar app
 swift run TerminalTerminal --scan [--all]     # print what the board would show, then exit
 swift run TerminalTerminal --snapshot out.png # render the board with sample rows to a PNG, then exit
 swift run TerminalTerminal --themes out.png   # render every style side by side, then exit
-swift run TerminalTerminal --screens out/     # one PNG per style, empty board, row states, settings light/dark
-swift run TerminalTerminal --demo <scenario>  # run the real app on a scripted process table, then exit (no name lists scenarios)
+swift run TerminalTerminal --screens demos/screens  # one PNG per style, empty board, row states, settings light/dark
+swift run TerminalTerminal --demo             # real app on a scripted process table, driven by commands on stdin (see App/Demo.swift)
 ```
 
 There are no tests (out of scope per the BRD). Verify visual changes with `--snapshot` and read the PNG. Verify scanner and heuristic changes with `--scan` against the real process table.
@@ -32,7 +32,7 @@ Data flows one way: **scanner → model → views**.
 - `Board/BoardTheme.swift` defines every selectable style: palette, typeface, cell metrics, cell style (`.flap`, `.plain`, `.dots`), optional row rules and per-column/per-status colours. Views read `\.boardTheme` from the environment; `ThemedBoard` in `AppDelegate.swift` injects the one picked in settings. Add a style by adding a static theme and listing it in `BoardTheme.all`. Settings can override a preset's display, accent and seconds via `BoardTheme.customised`, which rescales metrics and derives tiles or unlit dots the preset lacks. Column widths come from `theme.cells(_:)`, not `BoardColumn.cells`, because TIME narrows without seconds.
 - `Flap/` is the character renderer. `SplitFlapCharacter` animates a cell through random glyphs to its target via `.task(id:)` (or straight to it with `scrambles: false`, used for clocks) and draws it with `FlapFace` (split-flap), `PlainCell` or `DotMatrixCell` (5×7 `DotFont`) per the theme. `SplitFlapText` composes cells into a fixed-width field. All board text goes through `FlapGlyphs.cells`, which uppercases and restricts to the glyph set; `DotFont` must cover every glyph in that set.
 - `Board/BoardView.swift` and `BoardRow.swift` lay out columns (widths in cells, in `BoardColumn`). Empty slots render as blank tiles down to `minimumRows`. Departing rows flip to blank before collapsing.
-- `App/Demo.swift` holds scripted scenarios for recordings: the real app fed `ScriptedProcesses`, with settings and board position in a separate defaults suite. Under a recorder it waits for `DEMO_READY_FILE` before its first action. Add a scenario as a `Demo.Scenario` case and its timeline in `run`.
+- `App/Demo.swift` is demo mode for recordings: the real app fed `ScriptedProcesses`, driven by line commands on stdin (`start`, `add`, `exit`, `style`, …), with settings and board position in a separate defaults suite. Demo plans live in `demos/*.demo.yaml` and run with `demos/skill/demo-video/scripts/demo-video run`; takes go to `demos/out/` (ignored). See `demos/README.md`.
 - `App/` holds the AppKit shell. `AppDelegate` owns the status item and settings. Settings shows in `SettingsBubble`, a hand-positioned popover-style panel (Liquid Glass on macOS 26+, `NSVisualEffectView` vibrancy before; grows from the arrow on open) (`NSPopover` misplaces itself when anchored inside a floating panel near the screen bottom), anchored to the menu bar button or an `NSView` behind the board's gear. `BoardPanelController` hosts SwiftUI in a borderless non-activating `NSPanel`, sizes it from a SwiftUI size preference (top-left anchored, shrinks delayed until collapse animations finish), and persists the dragged position in `UserDefaults`.
 
 ## Gotchas

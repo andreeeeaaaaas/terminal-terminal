@@ -23,7 +23,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case board(NSView)
     }
 
-    /// With a demo, runs its script against a fake process table, then quits.
+    /// With a demo, takes commands on stdin against a fake process table, and quits when it closes.
     init(demo: Demo? = nil) {
         self.demo = demo
         settings = demo.map { Settings(defaults: $0.defaults) } ?? Settings()
@@ -47,7 +47,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         boardController.show()
         if let demo {
             Task { [model] in
-                await demo.run(model: model)
+                await demo.run(model: model, settings: settings)
                 NSApp.terminate(nil)
             }
         } else {

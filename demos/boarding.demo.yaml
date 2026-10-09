@@ -1,0 +1,17 @@
+# Rows already running flip in, then two new servers board and settle.
+name: boarding
+platform: macos
+app:
+  build: [swift, build]
+  launch: [.build/debug/TerminalTerminal, --demo]
+  cwd: ..
+output:
+  formats: [mov, mp4, gif]
+  captions: burn
+steps:
+  - { at: 0, state: add oceanheroes }
+  - { at: 0, state: add api }
+  - { at: 0.8, state: start, caption: Dev servers already running }
+  - { at: 3.5, state: add vite, caption: New ones board as they start }
+  - { at: 5, state: add backoffice }
+  - { at: 11.5, end: true }
