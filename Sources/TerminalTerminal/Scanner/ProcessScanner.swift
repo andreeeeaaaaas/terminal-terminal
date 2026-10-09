@@ -1,0 +1,215 @@
+import Foundation
+
+/// One process the board should show.
+struct ScannedProcess: Equatable {
+    let pid: Int32
+    /// Lowest listening port, or nil for a portless background task.
+    let port: Int?
+    let label: String
+    let destination: String
+    let command: String
+    let uptime: TimeInterval
+    let cpu: Double
+}
+
+/// Reads listening sockets and the process table, and decides which processes are worth
+/// a row. Not thread-safe: call `scan` from one task at a time.
+final class ProcessScanner: @unchecked Sendable {
+    /// Portless processes must have run this long to count as background tasks.
+    static let backgroundTaskMinimumUptime: TimeInterval = 5 * 60
+    static let minimumPort = 1024
+
+    private var cwdCache: [Int32: String] = [:]
+    private let uid = getuid()
+
+    func scan(showAll: Bool) -> [ScannedProcess] {
+        let listening = Self.listeningPorts()
+        let table = Self.processTable()
+        let commands = table.mapValues { ParsedCommand($0.command) }
+
+        func isNoise(_ pid: Int32) -> Bool {
+            guard let command = commands[pid] else { return true }
+            if LabelHeuristics.isHidden(command) { return true }
+            let labelled = LabelHeuristics.label(for: command) != nil
+            if (command.isBundled || command.isSystem) && !labelled { return true }
+            return isSpawnedByApp(pid, table: table, commands: commands)
+        }
+
+        // Port owners
+        var portOwners: [Int32: Int] = [:]
+        for (pid, ports) in listening {
+            guard let row = table[pid], row.uid == uid else { continue }
+            let eligible = showAll ? ports : ports.filter { $0 >= Self.minimumPort }
+            guard let port = eligible.min() else { continue }
+            if !showAll && isNoise(pid) { continue }
+            portOwners[pid] = port
+        }
+
+        // Portless background tasks: recognised tools left running
+        var background = Set<Int32>()
+        for (pid, row) in table where row.uid == uid && portOwners[pid] == nil {
+            guard row.uptime >= Self.backgroundTaskMinimumUptime,
+                  let command = commands[pid],
+                  LabelHeuristics.label(for: command) != nil,
+                  !isNoise(pid)
+            else { continue }
+            background.insert(pid)
+        }
+
+        // Collapse process trees: `npm run dev` → `sh -c` → `node vite` shows once, as the
+        // worker. A background task is dropped if it sits above or below another row.
+        let shown = Set(portOwners.keys).union(background)
+        var ancestorsOfShown = Set<Int32>()
+        for pid in shown {
+            ancestorsOfShown.formUnion(ancestors(of: pid, table: table))
+        }
+        background = background.filter { pid in
+            !ancestorsOfShown.contains(pid)
+                && ancestors(of: pid, table: table).allSatisfy { portOwners[$0] == nil }
+        }
+
+        let pids = Array(portOwners.keys) + Array(background)
+        resolveWorkingDirectories(for: pids)
+
+        return pids.compactMap { pid in
+            guard let row = table[pid], let command = commands[pid] else { return nil }
+            return ScannedProcess(
+                pid: pid,
+                port: portOwners[pid],
+                label: LabelHeuristics.label(for: command) ?? command.executable,
+                destination: LabelHeuristics.destination(for: command, cwd: cwdCache[pid]),
+                command: row.command,
+                uptime: row.uptime,
+                cpu: row.cpu
+            )
+        }
+    }
+
+    // MARK: - Process tree
+
+    /// True when the first non-shell owner up the tree is a GUI app (Raycast, an editor).
+    /// Walking stops at an interactive shell, so anything started from a terminal counts as yours.
+    private func isSpawnedByApp(_ pid: Int32, table: [Int32: PSRow], commands: [Int32: ParsedCommand]) -> Bool {
+        for ancestor in ancestors(of: pid, table: table) {
+            guard let command = commands[ancestor] else { return false }
+            if command.isInteractiveShell || command.isTerminalApp { return false }
+            if command.isBundled { return true }
+        }
+        return false
+    }
+
+    private func ancestors(of pid: Int32, table: [Int32: PSRow]) -> [Int32] {
+        var result: [Int32] = []
+        var current = table[pid]?.ppid ?? 1
+        while current > 1, result.count < 64, let row = table[current] {
+            result.append(current)
+            current = row.ppid
+        }
+        return result
+    }
+
+    // MARK: - lsof
+
+    /// `lsof -iTCP -sTCP:LISTEN -P -n`, in field mode for reliable parsing.
+    private static func listeningPorts() -> [Int32: Set<Int>] {
+        guard let output = Subprocess.run("/usr/sbin/lsof", ["-iTCP", "-sTCP:LISTEN", "-P", "-n", "-F", "pn"]) else { return [:] }
+        var result: [Int32: Set<Int>] = [:]
+        var pid: Int32?
+        for line in output.split(separator: "\n") {
+            guard let field = line.first else { continue }
+            let value = line.dropFirst()
+            switch field {
+            case "p":
+                pid = Int32(value)
+            case "n":
+                guard let pid, let colon = value.lastIndex(of: ":"),
+                      let port = Int(value[value.index(after: colon)...]) else { continue }
+                result[pid, default: []].insert(port)
+            default:
+                continue
+            }
+        }
+        return result
+    }
+
+    private func resolveWorkingDirectories(for pids: [Int32]) {
+        let alive = Set(pids)
+        cwdCache = cwdCache.filter { alive.contains($0.key) }
+        let missing = pids.filter { cwdCache[$0] == nil }
+        guard !missing.isEmpty else { return }
+
+        let list = missing.map(String.init).joined(separator: ",")
+        guard let output = Subprocess.run("/usr/sbin/lsof", ["-a", "-d", "cwd", "-p", list, "-F", "n"]) else { return }
+        var pid: Int32?
+        for line in output.split(separator: "\n") {
+            if line.hasPrefix("p") { pid = Int32(line.dropFirst()) }
+            if line.hasPrefix("n"), let pid { cwdCache[pid] = String(line.dropFirst()) }
+        }
+        // Remember misses too, so a process we can't inspect isn't queried every poll.
+        for pid in missing where cwdCache[pid] == nil { cwdCache[pid] = "/" }
+    }
+
+    // MARK: - ps
+
+    struct PSRow {
+        let ppid: Int32
+        let uid: uid_t
+        let uptime: TimeInterval
+        let cpu: Double
+        let command: String
+    }
+
+    private static func processTable() -> [Int32: PSRow] {
+        guard let output = Subprocess.run("/bin/ps", ["-axww", "-o", "pid=,ppid=,uid=,etime=,%cpu=,tty=,command="]) else { return [:] }
+        var table: [Int32: PSRow] = [:]
+        for line in output.split(separator: "\n") {
+            let fields = line.split(separator: " ", maxSplits: 6, omittingEmptySubsequences: true)
+            guard fields.count == 7,
+                  let pid = Int32(fields[0]),
+                  let ppid = Int32(fields[1]),
+                  let uid = uid_t(fields[2]),
+                  let uptime = parseElapsed(fields[3]),
+                  let cpu = Double(fields[4])
+            else { continue }
+            // `split` keeps the column padding in front of the last field.
+            let command = fields[6].trimmingCharacters(in: .whitespaces)
+            table[pid] = PSRow(ppid: ppid, uid: uid, uptime: uptime, cpu: cpu, command: command)
+        }
+        return table
+    }
+
+    /// Parses `ps` elapsed time: `[[dd-]hh:]mm:ss`.
+    static func parseElapsed<S: StringProtocol>(_ text: S) -> TimeInterval? {
+        var days = 0.0
+        var clock = Substring(text)
+        if let dash = clock.firstIndex(of: "-") {
+            guard let parsed = Double(clock[..<dash]) else { return nil }
+            days = parsed
+            clock = clock[clock.index(after: dash)...]
+        }
+        let parts = clock.split(separator: ":").compactMap { Double($0) }
+        guard (2...3).contains(parts.count) else { return nil }
+        let seconds = parts.reduce(0) { $0 * 60 + $1 }
+        return days * 86_400 + seconds
+    }
+}
+
+/// Runs a tool directly (no shell) and returns its standard output.
+enum Subprocess {
+    static func run(_ path: String, _ arguments: [String]) -> String? {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: path)
+        process.arguments = arguments
+        let output = Pipe()
+        process.standardOutput = output
+        process.standardError = FileHandle.nullDevice
+        do {
+            try process.run()
+        } catch {
+            return nil
+        }
+        let data = output.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
+        return String(decoding: data, as: UTF8.self)
+    }
+}
