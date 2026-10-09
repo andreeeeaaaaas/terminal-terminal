@@ -2,12 +2,7 @@
 
 A floating split-flap departure board for macOS that shows your running dev servers and forgotten background tasks as flights.
 
-```
-GATE  FLIGHT             PID  STATUS    TIME
-4321  ASTRO OCEANHEROE  7862  RUNNING   90:16:40
-5173  VITE TERMINAL-UI 40211  BOARDING  00:21:00
---    TSC API          40388  IDLE      01:07:00
-```
+![The board in the Charcoal style, showing five dev servers and background tasks with their ports, process IDs, status and uptime](demos/board.png)
 
 - **GATE**: listening port, or `--` for a background task with no port
 - **FLIGHT**: what's running (the "airline") and which project (the destination)
