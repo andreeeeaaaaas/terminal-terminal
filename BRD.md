@@ -60,6 +60,7 @@ The floating board shows real listening ports, refreshes on a poll, animates cha
 - Selectable board styles
 - Remembered board position
 - README (permissions, extending label heuristics)
+- Universal build and unsigned GitHub release zip
 
 ## 2. Locked Choices
 
@@ -72,7 +73,7 @@ The floating board shows real listening ports, refreshes on a poll, animates cha
 | Data | `lsof -iTCP -sTCP:LISTEN -P -n` and `ps -axww -o pid,ppid,uid,etime,%cpu,tty,command` via `Process` | Polled every 2 seconds by default. One `ps` call covers port owners, background tasks, CPU and parent chains. `lsof -d cwd` once per new PID for the project folder |
 | Persistence | `UserDefaults` | Board position, settings |
 | Package manager | Swift Package Manager | Executable target, opens directly in Xcode. Zero dependencies |
-| Distribution | Local unsigned build | No Dock icon (`LSUIElement` / `.accessory` activation policy) |
+| Distribution | Unsigned universal build (arm64 + x86_64), shared as a zip on GitHub Releases | Ad-hoc signed; users clear Gatekeeper with Open Anyway. No Dock icon (`LSUIElement` / `.accessory` activation policy) |
 
 **Pinned versions**
 - Deployment target: macOS 13
@@ -106,7 +107,7 @@ The floating board shows real listening ports, refreshes on a poll, animates cha
 - macOS only.
 
 **Out of scope**: not in this build, may come later
-- Code signing, notarisation, App Store, auto-update.
+- Developer ID signing, notarisation, Homebrew cask, App Store, auto-update.
 - UDP sockets and remote hosts.
 - Automated tests.
 

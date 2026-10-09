@@ -14,17 +14,29 @@ GATE  FLIGHT             PID  STATUS    TIME
 - **STATUS**: BOARDING, RUNNING, IDLE (near-zero CPU for a minute), DEPARTED
 - **TIME**: uptime as hours, minutes and seconds
 
-## Run it
+## Install
 
-Requires macOS 13 or later and Xcode 15 or later. No dependencies.
+Runs on macOS 13 or later, on Apple silicon and Intel.
+
+1. Download `TerminalTerminal-<version>.zip` from the latest GitHub release and unzip it.
+2. Move **Terminal Terminal** to Applications and open it.
+3. The app isn't notarised by Apple, so macOS blocks the first launch. Open **System Settings → Privacy & Security**, scroll down and click **Open Anyway**. Or run:
+
+   ```sh
+   xattr -dr com.apple.quarantine "/Applications/Terminal Terminal.app"
+   ```
+
+It has no Dock icon: look for the plane in the menu bar.
+
+## Build from source
+
+Needs Xcode 26 or later to build (the Liquid Glass settings use the macOS 26 SDK); the app still runs on macOS 13. No dependencies.
 
 ```sh
 open Package.swift                 # in Xcode, then Run (⌘R)
 swift run                          # or from the terminal
-./scripts/bundle.sh                # or build "build/Terminal Terminal.app"
+./scripts/bundle.sh                # or build a universal "build/Terminal Terminal.app"
 ```
-
-The bundled app is ad-hoc signed and has no Dock icon. Move it to `/Applications` to keep it.
 
 ## Use it
 
@@ -77,3 +89,9 @@ To check what the board would show without opening it:
 swift run TerminalTerminal --scan          # add --all to bypass the noise filter
 swift run TerminalTerminal --snapshot board.png
 ```
+
+## Releasing
+
+1. Bump `CFBundleShortVersionString` (and `CFBundleVersion`) in `Support/Info.plist`.
+2. Run `./scripts/release.sh` to build the universal app and package `build/TerminalTerminal-<version>.zip` (about 700 KB).
+3. Run `./scripts/release.sh --publish` to also create a draft GitHub release `v<version>` with the zip and install notes attached. Needs the `gh` CLI and a GitHub remote. Review the draft on GitHub, then publish it.

@@ -9,7 +9,8 @@ Guidance for coding agents working in this repository.
 ```sh
 swift build                                   # debug build
 swift run                                     # launch the menu bar app
-./scripts/bundle.sh                           # release build → build/Terminal Terminal.app (LSUIElement, ad-hoc signed)
+./scripts/bundle.sh                           # universal release build → build/Terminal Terminal.app (LSUIElement, ad-hoc signed)
+./scripts/release.sh [--publish]              # bundle + zip to build/TerminalTerminal-<version>.zip; --publish makes a draft GitHub release
 swift run TerminalTerminal --scan [--all]     # print what the board would show, then exit
 swift run TerminalTerminal --snapshot out.png # render the board with sample rows to a PNG, then exit
 swift run TerminalTerminal --themes out.png   # render every style side by side, then exit
@@ -19,7 +20,7 @@ There are no tests (out of scope per the BRD). Verify visual changes with `--sna
 
 ## Architecture
 
-Swift package, single executable target `TerminalTerminal`, macOS 13+, Swift 5 language mode, no dependencies.
+Swift package, single executable target `TerminalTerminal`, macOS 13+ deployment target, Swift 5 language mode, no dependencies. Building needs Xcode 26+ (macOS 26 SDK) for the `#available`-gated Liquid Glass code. Universal builds print an x86_64 deprecation warning about the SDK default; the binary still targets macOS 13 (check with `vtool -show-build`).
 
 Data flows one way: **scanner → model → views**.
 
