@@ -6,6 +6,7 @@ import SwiftUI
 ///
 ///     TerminalTerminal --snapshot out.png   # current theme: full, empty and mid-flip
 ///     TerminalTerminal --themes out.png     # every theme side by side
+///     TerminalTerminal --screens out/       # each style, the empty board and settings, one PNG each
 @MainActor
 enum Snapshot {
     static func render(to path: String) -> Bool {
@@ -26,7 +27,7 @@ enum Snapshot {
         return write(view, to: path)
     }
 
-    static func renderThemes(to path: String) -> Bool {
+    static func renderThemes(to path: String, background: Color = backdrop) -> Bool {
         let themes = Array(BoardTheme.all.enumerated())
         let view = Grid(alignment: .topLeading, horizontalSpacing: 40, verticalSpacing: 36) {
             ForEach(Array(stride(from: 0, to: themes.count, by: 2)), id: \.self) { start in
@@ -45,14 +46,84 @@ enum Snapshot {
                 }
             }
         }
-        return write(view, to: path)
+        return write(view, to: path, background: background)
     }
 
-    private static func write(_ content: some View, to path: String) -> Bool {
+    static func renderScreens(to directory: String) -> Bool {
+        let folder = URL(fileURLWithPath: directory, isDirectory: true)
+        do {
+            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        } catch {
+            FileHandle.standardError.write(Data("screens: \(error)\n".utf8))
+            return false
+        }
+        func path(_ name: String) -> String { folder.appendingPathComponent(name).path }
+
+        var ok = true
+        for (index, theme) in BoardTheme.all.enumerated() {
+            let slug = theme.name.lowercased().replacingOccurrences(of: " ", with: "-")
+            let board = BoardView(model: previewModel(samples)).environment(\.boardTheme, theme)
+            ok = writeScreen(board, to: path(String(format: "board-%02d-%@.png", index + 1, slug))) && ok
+        }
+        ok = writeScreen(BoardView(model: previewModel([])), to: path("board-empty.png")) && ok
+        ok = writeScreen(BoardView(model: previewModel(samples, delayed: [41007], boarding: [40211], departed: [40388])), to: path("board-states.png")) && ok
+        ok = renderThemes(to: path("themes.png"), background: .clear) && ok
+        ok = writeSettings(appearance: .aqua, to: path("settings-light.png")) && ok
+        ok = writeSettings(appearance: .darkAqua, to: path("settings-dark.png")) && ok
+        return ok
+    }
+
+    /// A board on a transparent background, keeping its drop shadow.
+    private static func writeScreen(_ board: some View, to path: String) -> Bool {
+        write(board.fixedSize().shadow(color: .black.opacity(0.35), radius: 14, y: 6), to: path, background: .clear)
+    }
+
+    /// Settings uses AppKit-backed pickers and toggles, which `ImageRenderer` can't draw,
+    /// so it goes through an offscreen hosting view. The glass surface is replaced by a plain card.
+    private static func writeSettings(appearance: NSAppearance.Name, to path: String) -> Bool {
+        let content = SettingsView(
+            settings: Settings(defaults: UserDefaults(suiteName: "snapshot")!),
+            onResetPosition: {},
+            onQuit: {}
+        )
+        .background(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(Color(nsColor: .windowBackgroundColor))
+                .shadow(color: .black.opacity(0.3), radius: 14, y: 6)
+        )
+        .padding(32)
+
+        let hosting = NSHostingView(rootView: content)
+        hosting.appearance = NSAppearance(named: appearance)
+        let size = hosting.fittingSize
+        let window = NSWindow(contentRect: NSRect(origin: .zero, size: size), styleMask: [.borderless], backing: .buffered, defer: false)
+        window.appearance = NSAppearance(named: appearance)
+        window.isOpaque = false
+        window.backgroundColor = .clear
+        window.contentView = hosting
+        hosting.frame = NSRect(origin: .zero, size: size)
+        hosting.layoutSubtreeIfNeeded()
+        RunLoop.main.run(until: Date().addingTimeInterval(0.2))
+
+        guard let rep = hosting.bitmapImageRepForCachingDisplay(in: hosting.bounds) else { return false }
+        hosting.cacheDisplay(in: hosting.bounds, to: rep)
+        guard let png = rep.representation(using: .png, properties: [:]) else { return false }
+        do {
+            try png.write(to: URL(fileURLWithPath: path))
+            return true
+        } catch {
+            FileHandle.standardError.write(Data("snapshot: \(error)\n".utf8))
+            return false
+        }
+    }
+
+    nonisolated private static let backdrop = Color(white: 0.86)
+
+    private static func write(_ content: some View, to path: String, background: Color = backdrop) -> Bool {
         let view = content
             .environment(\.flapStartsSettled, true)
             .padding(32)
-            .background(Color(white: 0.86))
+            .background(background)
         let renderer = ImageRenderer(content: view)
         renderer.scale = 2
         guard let image = renderer.nsImage,
@@ -84,7 +155,7 @@ enum Snapshot {
         )
     }
 
-    private static let samples: [ScannedProcess] = [
+    static let samples: [ScannedProcess] = [
         ScannedProcess(pid: 7862, port: 4321, label: "ASTRO", destination: "oceanheroes", command: "astro dev", uptime: 325_000, cpu: 0),
         ScannedProcess(pid: 11769, port: 4323, label: "ASTRO", destination: "sandrathoma-site", command: "astro dev", uptime: 30_000, cpu: 0),
         ScannedProcess(pid: 40211, port: 5173, label: "VITE", destination: "terminal-ui", command: "vite", uptime: 1_260, cpu: 2.1),

@@ -12,6 +12,17 @@ struct ScannedProcess: Equatable {
     let cpu: Double
 }
 
+/// Where board rows come from, and where signals go: the live process table, or a scripted
+/// one for demos.
+protocol ProcessSource: AnyObject, Sendable {
+    func scan(showAll: Bool) -> [ScannedProcess]
+    /// The full command line of `pid`, or nil if it's gone.
+    func command(of pid: Int32) -> String?
+    /// False if the signal was refused.
+    func send(_ signal: Int32, to pid: Int32) -> Bool
+    func isAlive(_ pid: Int32) -> Bool
+}
+
 /// Reads listening sockets and the process table, and decides which processes are worth
 /// a row. Not thread-safe: call `scan` from one task at a time.
 final class ProcessScanner: @unchecked Sendable {
@@ -191,6 +202,21 @@ final class ProcessScanner: @unchecked Sendable {
         guard (2...3).contains(parts.count) else { return nil }
         let seconds = parts.reduce(0) { $0 * 60 + $1 }
         return days * 86_400 + seconds
+    }
+}
+
+extension ProcessScanner: ProcessSource {
+    func command(of pid: Int32) -> String? {
+        Subprocess.run("/bin/ps", ["-ww", "-o", "command=", "-p", String(pid)])?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    func send(_ signal: Int32, to pid: Int32) -> Bool {
+        kill(pid, signal) == 0
+    }
+
+    func isAlive(_ pid: Int32) -> Bool {
+        kill(pid, 0) == 0 || errno == EPERM
     }
 }
 

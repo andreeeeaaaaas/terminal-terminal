@@ -3,3 +3,5 @@ build/
 .swiftpm/
 *.xcodeproj/xcuserdata/
 portfolio/
+/demos/
+/screens/

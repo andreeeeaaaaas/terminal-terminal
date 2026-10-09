@@ -4,8 +4,9 @@ import SwiftUI
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
-    private let settings = Settings()
-    private lazy var model = BoardModel(settings: settings)
+    private let settings: Settings
+    private let model: BoardModel
+    private let demo: Demo?
     private var boardController: BoardPanelController!
     private var statusItem: NSStatusItem!
     private var settingsBubble: SettingsBubble!
@@ -22,8 +23,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case board(NSView)
     }
 
+    /// With a demo, runs its script against a fake process table, then quits.
+    init(demo: Demo? = nil) {
+        self.demo = demo
+        settings = demo.map { Settings(defaults: $0.defaults) } ?? Settings()
+        model = BoardModel(settings: settings, source: demo?.processes ?? ProcessScanner())
+    }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
-        boardController = BoardPanelController { [unowned self] _ in
+        boardController = BoardPanelController(defaults: demo?.defaults ?? .standard) { [unowned self] _ in
             ThemedBoard(
                 model: model,
                 settings: settings,
@@ -36,8 +44,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         setUpSettings()
 
         model.onFirstArrival = { [unowned self] in boardController.show() }
-        model.start()
         boardController.show()
+        if let demo {
+            Task { [model] in
+                await demo.run(model: model)
+                NSApp.terminate(nil)
+            }
+        } else {
+            model.start()
+        }
 
         settingsObservers.append(settings.$showAllPorts.dropFirst().sink { [unowned self] _ in
             model.refresh(quiet: true)

@@ -77,7 +77,7 @@ final class BoardModel: ObservableObject {
     static let activeCPU = 0.5
 
     private let settings: Settings
-    private let scanner = ProcessScanner()
+    private let source: ProcessSource
     private var loop: Task<Void, Never>?
     private var isScanning = false
     private var lastScan = Date.distantPast
@@ -85,13 +85,15 @@ final class BoardModel: ObservableObject {
     /// After a filter change, rows that drop out collapse without a departure.
     private var quietNextScan = false
 
-    init(settings: Settings) {
+    init(settings: Settings, source: ProcessSource = ProcessScanner()) {
         self.settings = settings
+        self.source = source
     }
 
     /// A static board for snapshots.
     init(settings: Settings, preview processes: [ScannedProcess], idle: Set<Int32> = [], delayed: Set<Int32> = [], boarding: Set<Int32> = [], departed: Set<Int32> = []) {
         self.settings = settings
+        source = ProcessScanner()
         entries = processes.map {
             BoardEntry(
                 process: $0,
@@ -131,9 +133,9 @@ final class BoardModel: ObservableObject {
     private func scan() async {
         isScanning = true
         let showAll = settings.showAllPorts
-        let scanner = scanner
+        let source = source
         let results = await Task.detached(priority: .utility) {
-            scanner.scan(showAll: showAll)
+            source.scan(showAll: showAll)
         }.value
         lastScan = Date()
         isScanning = false
@@ -190,7 +192,7 @@ final class BoardModel: ObservableObject {
             case .denied(let until) where now >= until:
                 updated[index].phase = .active
             case .closing(let since) where now.timeIntervalSince(since) >= Self.terminateGrace:
-                if Self.isAlive(updated[index].pid) { updated[index].phase = .delayed }
+                if source.isAlive(updated[index].pid) { updated[index].phase = .delayed }
             case .departed(let since) where now.timeIntervalSince(since) >= Self.departedHold:
                 updated[index].phase = .clearing(since: now)
             default:
@@ -229,13 +231,11 @@ final class BoardModel: ObservableObject {
 
     private func send(_ signal: Int32, to entry: BoardEntry) {
         // The PID may have been reused since the last scan. Only signal the process we showed.
-        let current = Subprocess.run("/bin/ps", ["-ww", "-o", "command=", "-p", String(entry.pid)])?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        guard current == entry.process.command else {
+        guard source.command(of: entry.pid) == entry.process.command else {
             update(entry.id) { $0.phase = .departed(since: Date()) }
             return
         }
-        let succeeded = kill(entry.pid, signal) == 0
+        let succeeded = source.send(signal, to: entry.pid)
         update(entry.id) {
             $0.phase = succeeded ? .closing(since: Date()) : .denied(until: Date() + 3)
         }
@@ -246,9 +246,5 @@ final class BoardModel: ObservableObject {
         guard let index = updated.firstIndex(where: { $0.id == id }) else { return }
         change(&updated[index])
         publish(updated)
-    }
-
-    private static func isAlive(_ pid: Int32) -> Bool {
-        kill(pid, 0) == 0 || errno == EPERM
     }
 }
