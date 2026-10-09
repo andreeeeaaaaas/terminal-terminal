@@ -33,10 +33,13 @@ final class SettingsBubble {
         panel.contentView = hosting
     }
 
-    var isShown: Bool { panel.isVisible }
+    /// False as soon as closing starts, even while the closing animation runs.
+    private(set) var isShown = false
 
     /// Shows the bubble pointing at `anchor`, a rect in screen coordinates.
     func show(pointingAt anchor: NSRect) {
+        isShown = true
+        withoutAnimation { layout.isPresented = false }
         let screen = NSScreen.screens.first { $0.frame.intersects(anchor) } ?? NSScreen.main
         let visible = screen?.visibleFrame ?? anchor.insetBy(dx: -1000, dy: -1000)
 
@@ -55,12 +58,33 @@ final class SettingsBubble {
         panel.setFrame(NSRect(x: x, y: y, width: size.width, height: size.height), display: true)
         panel.orderFrontRegardless()
         panel.invalidateShadow()
+        // Grow out of the arrow, like a system popover. Reduce Motion fades only.
+        DispatchQueue.main.async { [layout] in
+            withAnimation(Self.reduceMotion ? .easeOut(duration: 0.15) : .spring(response: 0.24, dampingFraction: 0.82)) {
+                layout.isPresented = true
+            }
+        }
     }
 
     func close() {
-        guard panel.isVisible else { return }
-        panel.orderOut(nil)
+        guard isShown else { return }
+        isShown = false
+        withAnimation(.easeIn(duration: 0.12)) { layout.isPresented = false }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.13) { [weak self] in
+            guard let self, !self.isShown else { return }
+            self.panel.orderOut(nil)
+        }
         onClose()
+    }
+
+    private static var reduceMotion: Bool {
+        NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+    }
+
+    private func withoutAnimation(_ body: () -> Void) {
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction, body)
     }
 }
 
@@ -74,6 +98,8 @@ private final class BubbleLayout: ObservableObject {
     @Published var arrowOnTop = true
     /// The arrow tip's x position from the bubble's left edge.
     @Published var arrowX: CGFloat = 150
+    /// Drives the open and close animation.
+    @Published var isPresented = false
 }
 
 private struct Bubble<Content: View>: View {
@@ -87,9 +113,82 @@ private struct Bubble<Content: View>: View {
         content
             .padding(.top, layout.arrowOnTop ? Self.arrowHeight : 0)
             .padding(.bottom, layout.arrowOnTop ? 0 : Self.arrowHeight)
-            .background(shape.fill(Color(nsColor: .windowBackgroundColor)))
-            .overlay(shape.stroke(Color.primary.opacity(0.1), lineWidth: 0.5))
+            .background { BubbleSurface(shape: shape) }
             .fixedSize()
+            .background(GeometryReader { proxy in
+                Color.clear.preference(key: BubbleWidthKey.self, value: proxy.size.width)
+            })
+            .onPreferenceChange(BubbleWidthKey.self) { width = $0 }
+            .scaleEffect(layout.isPresented ? 1 : 0.94, anchor: arrowAnchor)
+            .opacity(layout.isPresented ? 1 : 0)
+    }
+
+    @State private var width: CGFloat = 1
+
+    /// Where the arrow tip is, so the bubble grows out of it.
+    private var arrowAnchor: UnitPoint {
+        UnitPoint(x: min(max(layout.arrowX / max(width, 1), 0), 1), y: layout.arrowOnTop ? 0 : 1)
+    }
+}
+
+private struct BubbleWidthKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = max(value, nextValue())
+    }
+}
+
+/// Liquid Glass on macOS 26 and later; the classic popover vibrancy before that.
+private struct BubbleSurface: View {
+    let shape: BubbleShape
+
+    var body: some View {
+        if #available(macOS 26, *) {
+            // Tinted toward the window colour (light or dark), so controls keep their contrast
+            // over bright wallpapers, as system popovers do.
+            Color.clear.glassEffect(.regular.tint(Color(nsColor: .windowBackgroundColor).opacity(0.55)), in: shape)
+        } else {
+            VibrantBackground(shape: shape)
+                .overlay(shape.stroke(Color.primary.opacity(0.1), lineWidth: 0.5))
+        }
+    }
+}
+
+/// `NSVisualEffectView` blurring the desktop behind the window, masked to the bubble shape.
+/// A mask image is needed: behind-window blur ignores SwiftUI clipping.
+private struct VibrantBackground: NSViewRepresentable {
+    let shape: BubbleShape
+
+    func makeNSView(context: Context) -> MaskedEffectView {
+        let view = MaskedEffectView()
+        view.material = .popover
+        view.blendingMode = .behindWindow
+        view.state = .active
+        view.shape = shape
+        return view
+    }
+
+    func updateNSView(_ view: MaskedEffectView, context: Context) {
+        view.shape = shape
+    }
+
+    final class MaskedEffectView: NSVisualEffectView {
+        var shape: BubbleShape? {
+            didSet { needsLayout = true }
+        }
+
+        override func layout() {
+            super.layout()
+            guard let shape, bounds.width > 0, bounds.height > 0 else { return }
+            let rect = CGRect(origin: .zero, size: bounds.size)
+            maskImage = NSImage(size: bounds.size, flipped: true) { _ in
+                guard let context = NSGraphicsContext.current?.cgContext else { return false }
+                context.addPath(shape.path(in: rect).cgPath)
+                context.setFillColor(.black)
+                context.fillPath()
+                return true
+            }
+        }
     }
 }
 

@@ -1,77 +1,77 @@
 import SwiftUI
 
+/// Settings in the style of System Settings: grouped rounded sections, labels left, controls right.
 struct SettingsView: View {
     @ObservedObject var settings: Settings
     var onResetPosition: () -> Void
     var onQuit: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Style")
-                    .font(.subheadline.weight(.medium))
-                Picker("Style", selection: $settings.style) {
-                    ForEach(BoardTheme.all, id: \.name) { theme in
-                        Text(theme.name).tag(theme.name)
+        VStack(alignment: .leading, spacing: 12) {
+            SettingsSection("Appearance") {
+                SettingsRow("Style") {
+                    Picker("Style", selection: $settings.style) {
+                        ForEach(BoardTheme.all, id: \.name) { theme in
+                            Text(theme.name).tag(theme.name)
+                        }
                     }
+                    .pickerStyle(.menu)
+                    .labelsHidden()
+                    .fixedSize()
                 }
-                .labelsHidden()
-            }
-
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Display")
-                    .font(.subheadline.weight(.medium))
-                Picker("Display", selection: displayBinding) {
-                    ForEach(BoardTheme.Display.allCases, id: \.self) { display in
-                        Text(display.title).tag(display)
+                RowDivider()
+                SettingsRow("Display") {
+                    Picker("Display", selection: displayBinding) {
+                        ForEach(BoardTheme.Display.allCases, id: \.self) { display in
+                            Text(display.title).tag(display)
+                        }
                     }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                    .fixedSize()
                 }
-                .pickerStyle(.segmented)
-                .labelsHidden()
+                RowDivider()
+                SettingsRow("Accent") {
+                    AccentSwatches(settings: settings)
+                }
+                RowDivider()
+                SettingsRow("Show seconds") {
+                    Toggle("Show seconds", isOn: $settings.showSeconds)
+                        .toggleStyle(.switch)
+                        .controlSize(.mini)
+                        .labelsHidden()
+                }
             }
 
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Accent")
-                    .font(.subheadline.weight(.medium))
-                AccentSwatches(settings: settings)
-            }
-
-            Toggle("Show seconds", isOn: $settings.showSeconds)
-
-            Divider()
-
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Refresh every")
-                    .font(.subheadline.weight(.medium))
-                Picker("Refresh every", selection: $settings.pollInterval) {
-                    ForEach(Settings.pollIntervals, id: \.self) { seconds in
-                        Text("\(Int(seconds))s").tag(seconds)
+            SettingsSection("Board") {
+                SettingsRow("Refresh every") {
+                    Picker("Refresh every", selection: $settings.pollInterval) {
+                        ForEach(Settings.pollIntervals, id: \.self) { seconds in
+                            Text("\(Int(seconds))s").tag(seconds)
+                        }
                     }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                    .fixedSize()
                 }
-                .pickerStyle(.segmented)
-                .labelsHidden()
+                RowDivider()
+                SettingsRow("Show all ports", detail: "Include apps, system services and ports below 1024.") {
+                    Toggle("Show all ports", isOn: $settings.showAllPorts)
+                        .toggleStyle(.switch)
+                        .controlSize(.mini)
+                        .labelsHidden()
+                }
             }
-
-            VStack(alignment: .leading, spacing: 2) {
-                Toggle("Show all ports", isOn: $settings.showAllPorts)
-                Text("Includes apps, system services and ports below 1024.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(.leading, 20)
-            }
-
-            Divider()
 
             HStack {
-                Button("Reset board position", action: onResetPosition)
+                FooterButton("Reset Board Position", action: onResetPosition)
                 Spacer()
-                Button("Quit", action: onQuit)
+                FooterButton("Quit Terminal Terminal", action: onQuit)
                     .keyboardShortcut("q")
             }
         }
-        .padding(16)
-        .frame(width: 280)
+        .padding(12)
+        .frame(width: 340)
     }
 
     /// Shows the preset's own display until overridden; picking the preset's own clears the override.
@@ -83,37 +83,165 @@ struct SettingsView: View {
     }
 }
 
-/// The preset's own accent first, then the fixed palette.
+/// A titled group of rows on a rounded inset background.
+private struct SettingsSection<Rows: View>: View {
+    let title: String
+    @ViewBuilder let rows: Rows
+
+    init(_ title: String, @ViewBuilder rows: () -> Rows) {
+        self.title = title
+        self.rows = rows()
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Text(title)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .padding(.leading, 10)
+            VStack(spacing: 0) { rows }
+                .background(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(Color.primary.opacity(0.05))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .strokeBorder(Color.primary.opacity(0.06), lineWidth: 0.5)
+                )
+        }
+    }
+}
+
+/// An inset hairline between rows.
+private struct RowDivider: View {
+    var body: some View {
+        Divider().padding(.leading, 10)
+    }
+}
+
+private struct SettingsRow<Control: View>: View {
+    let label: String
+    var detail: String?
+    @ViewBuilder let control: Control
+
+    init(_ label: String, detail: String? = nil, @ViewBuilder control: () -> Control) {
+        self.label = label
+        self.detail = detail
+        self.control = control()
+    }
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 12) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(label)
+                if let detail {
+                    Text(detail)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            Spacer(minLength: 0)
+            control
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .frame(minHeight: 34)
+    }
+}
+
+/// The preset's own accent, then the fixed palette. Styled after System Settings' accent
+/// colours: the selected swatch carries a white centre dot.
 private struct AccentSwatches: View {
     @ObservedObject var settings: Settings
 
     var body: some View {
-        HStack(spacing: 8) {
-            swatch(color: settings.preset.accent, label: "\(settings.preset.name) default", isSelected: settings.accent == nil) {
+        HStack(spacing: 7) {
+            Swatch(color: settings.preset.accent, label: "\(settings.preset.name) default", isSelected: settings.accent == nil) {
                 settings.accent = nil
             }
-            Divider().frame(height: 16)
+            Rectangle()
+                .fill(Color.primary.opacity(0.15))
+                .frame(width: 1, height: 12)
             ForEach(BoardTheme.Accent.allCases, id: \.self) { accent in
-                swatch(color: accent.color, label: accent.title, isSelected: settings.accent == accent) {
+                Swatch(color: accent.color, label: accent.title, isSelected: settings.accent == accent) {
                     settings.accent = accent
                 }
             }
         }
     }
+}
 
-    private func swatch(color: Color, label: String, isSelected: Bool, action: @escaping () -> Void) -> some View {
+private struct Swatch: View {
+    let color: Color
+    let label: String
+    let isSelected: Bool
+    let action: () -> Void
+
+    @State private var isHovering = false
+
+    var body: some View {
         Button(action: action) {
             Circle()
                 .fill(color)
-                .frame(width: 18, height: 18)
-                .overlay(Circle().strokeBorder(Color.black.opacity(0.15), lineWidth: 0.5))
-                .padding(3)
-                .overlay(Circle().strokeBorder(isSelected ? Color.accentColor : .clear, lineWidth: 2))
-                .contentShape(Circle())
+                .overlay(Circle().strokeBorder(Color.black.opacity(0.12), lineWidth: 0.5))
+                .overlay(
+                    Circle()
+                        .fill(.white)
+                        .frame(width: 5, height: 5)
+                        .shadow(color: .black.opacity(0.25), radius: 0.5)
+                        .opacity(isSelected ? 1 : 0)
+                )
+                .frame(width: 15, height: 15)
+                .scaleEffect(isHovering ? 1.15 : 1)
+                .contentShape(Circle().inset(by: -3))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(PressableStyle())
+        .background(HoverTracker(isHovering: $isHovering))
+        .animation(.spring(response: 0.2, dampingFraction: 0.7), value: isHovering)
+        .animation(.easeOut(duration: 0.12), value: isSelected)
         .help(label)
         .accessibilityLabel(label)
         .accessibilityAddTraits(isSelected ? .isSelected : [])
+    }
+}
+
+/// A quiet text button with a hover highlight, for the footer.
+private struct FooterButton: View {
+    let title: String
+    let action: () -> Void
+
+    @State private var isHovering = false
+
+    init(_ title: String, action: @escaping () -> Void) {
+        self.title = title
+        self.action = action
+    }
+
+    var body: some View {
+        Button(action: action) {
+            Text(title)
+                .font(.callout)
+                .foregroundStyle(Color.primary.opacity(isHovering ? 1 : 0.78))
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(Color.primary.opacity(isHovering ? 0.08 : 0))
+                )
+                .contentShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+        }
+        .buttonStyle(PressableStyle())
+        .background(HoverTracker(isHovering: $isHovering))
+        .animation(.easeOut(duration: 0.12), value: isHovering)
+    }
+}
+
+/// Dims slightly while pressed.
+private struct PressableStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .opacity(configuration.isPressed ? 0.6 : 1)
+            .animation(.easeOut(duration: 0.08), value: configuration.isPressed)
     }
 }
