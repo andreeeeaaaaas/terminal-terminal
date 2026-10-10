@@ -1,4 +1,4 @@
-# Terminal Terminal
+# Terminal, Terminal!
 
 A floating split-flap departure board for macOS that shows your running dev servers and forgotten background tasks as flights.
 
