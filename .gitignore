@@ -5,3 +5,4 @@ build/
 portfolio/
 /demos/out/
 /demos/screens/
+.DS_Store
