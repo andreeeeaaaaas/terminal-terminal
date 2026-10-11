@@ -37,8 +37,7 @@ struct SettingsView: View {
                 RowDivider()
                 SettingsRow("Show seconds") {
                     Toggle("Show seconds", isOn: $settings.showSeconds)
-                        .toggleStyle(.switch)
-                        .controlSize(.mini)
+                        .toggleStyle(GreenSwitch())
                         .labelsHidden()
                 }
             }
@@ -57,15 +56,13 @@ struct SettingsView: View {
                 RowDivider()
                 SettingsRow("Show all ports", detail: "Include apps, system services and ports below 1024.") {
                     Toggle("Show all ports", isOn: $settings.showAllPorts)
-                        .toggleStyle(.switch)
-                        .controlSize(.mini)
+                        .toggleStyle(GreenSwitch())
                         .labelsHidden()
                 }
                 RowDivider()
                 SettingsRow("Appear on new server", detail: "Display the board anytime a new server is started.") {
                     Toggle("Appear on new server", isOn: $settings.showOnArrival)
-                        .toggleStyle(.switch)
-                        .controlSize(.mini)
+                        .toggleStyle(GreenSwitch())
                         .labelsHidden()
                 }
             }
@@ -250,5 +247,32 @@ private struct PressableStyle: ButtonStyle {
         configuration.label
             .opacity(configuration.isPressed ? 0.6 : 1)
             .animation(.easeOut(duration: 0.08), value: configuration.isPressed)
+    }
+}
+
+/// A mini switch drawn in SwiftUI. The app is never active, so AppKit's switch always
+/// draws its inactive grey and ignores `.tint`; this one stays green when on.
+private struct GreenSwitch: ToggleStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        Button {
+            configuration.isOn.toggle()
+        } label: {
+            Capsule()
+                .fill(configuration.isOn ? Color(nsColor: .systemGreen) : Color.primary.opacity(0.12))
+                .overlay(Capsule().strokeBorder(Color.black.opacity(0.06), lineWidth: 0.5))
+                .overlay(alignment: configuration.isOn ? .trailing : .leading) {
+                    Circle()
+                        .fill(.white)
+                        .shadow(color: .black.opacity(0.25), radius: 0.75, y: 0.5)
+                        .padding(1.5)
+                }
+                .frame(width: 26, height: 15)
+                .contentShape(Capsule())
+        }
+        .buttonStyle(PressableStyle())
+        .animation(.spring(response: 0.25, dampingFraction: 0.8), value: configuration.isOn)
+        .accessibilityRepresentation {
+            Toggle(isOn: configuration.$isOn) { configuration.label }
+        }
     }
 }
