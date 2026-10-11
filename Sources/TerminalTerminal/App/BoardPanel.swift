@@ -57,7 +57,9 @@ final class BoardPanelController {
             .onPreferenceChange(BoardSizeKey.self) { [weak self] size in
                 MainActor.assumeIsolated { self?.resize(to: size) }
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            // Zero minimums keep the frame within the panel, so a board briefly larger than the
+            // panel hangs off the bottom-right instead of being centred and clipped on every side.
+            .frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity, alignment: .topLeading)
         let hosting = FirstMouseHostingView(rootView: AnyView(root))
         hosting.sizingOptions = []
         panel.contentView = hosting
@@ -72,6 +74,8 @@ final class BoardPanelController {
     var isVisible: Bool { panel.isVisible }
 
     func show() {
+        // Lay out first so the board reports its size and the panel takes it before appearing.
+        if !hasPlaced { panel.contentView?.layoutSubtreeIfNeeded() }
         if !hasPlaced { place() }
         panel.orderFrontRegardless()
     }
@@ -89,25 +93,24 @@ final class BoardPanelController {
         place()
     }
 
-    /// Keeps the top-left corner fixed so the board grows and shrinks downward. Shrinks wait
-    /// for row-collapse animations to finish so the content isn't clipped mid-animation.
+    /// Keeps the top-left corner fixed so the board grows and shrinks downward. Each dimension
+    /// grows at once, so the board never overhangs the panel. Shrinks wait for row-collapse
+    /// animations to finish so the content isn't clipped mid-animation.
     func resize(to size: CGSize) {
         guard size.width > 0, size.height > 0 else { return }
         pendingShrink?.cancel()
-        let frame = panel.frame
-        let apply = { [weak self] in
-            guard let self else { return }
-            let top = self.panel.frame.maxY
-            self.setFrame(NSRect(x: self.panel.frame.minX, y: top - size.height, width: size.width, height: size.height))
-            if !self.hasPlaced { self.place() }
+        guard hasPlaced else {
+            setSize(size)
+            place()
+            return
         }
-        if size.height < frame.height, hasPlaced {
-            let work = DispatchWorkItem(block: apply)
-            pendingShrink = work
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4, execute: work)
-        } else {
-            apply()
-        }
+        let current = panel.frame.size
+        let grown = CGSize(width: max(size.width, current.width), height: max(size.height, current.height))
+        if grown != current { setSize(grown) }
+        guard grown != size else { return }
+        let work = DispatchWorkItem { [weak self] in self?.setSize(size) }
+        pendingShrink = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4, execute: work)
     }
 
     /// Moves the panel with the mouse. Uses screen coordinates from `NSEvent` rather than the
@@ -130,11 +133,19 @@ final class BoardPanelController {
         hasPlaced = true
     }
 
+    private func setSize(_ size: CGSize) {
+        let frame = panel.frame
+        setFrame(NSRect(x: frame.minX, y: frame.maxY - size.height, width: size.width, height: size.height))
+    }
+
     private func setFrame(_ frame: NSRect) {
         isMovingProgrammatically = true
         panel.setFrame(frame, display: true)
         panel.invalidateShadow()
         isMovingProgrammatically = false
+        // The shadow traces the window's pixels, which SwiftUI redraws after this returns.
+        // Retake it then, or it keeps the previous board's outline.
+        DispatchQueue.main.async { [weak self] in self?.panel.invalidateShadow() }
     }
 
     private func panelDidMove() {
