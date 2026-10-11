@@ -6,6 +6,7 @@ import SwiftUI
 ///
 ///     TerminalTerminal --snapshot out.png   # current theme: full, empty and mid-flip
 ///     TerminalTerminal --themes out.png     # every theme side by side
+///     TerminalTerminal --stack out.png      # every theme in one column, unlabelled and transparent
 ///     TerminalTerminal --screens out/       # each style, the empty board and settings, one PNG each
 @MainActor
 enum Snapshot {
@@ -49,6 +50,19 @@ enum Snapshot {
         return write(view, to: path, background: background)
     }
 
+    /// Every theme in one centred column, unlabelled, on a transparent background.
+    static func renderStack(to path: String) -> Bool {
+        let view = VStack(spacing: 36) {
+            ForEach(Array(BoardTheme.all.enumerated()), id: \.offset) { _, theme in
+                BoardView(model: previewModel(samples, boarding: [40211], departed: [41007]))
+                    .environment(\.boardTheme, theme)
+                    .fixedSize()
+                    .shadow(color: .black.opacity(0.35), radius: 14, y: 6)
+            }
+        }
+        return write(view, to: path, background: .clear)
+    }
+
     static func renderScreens(to directory: String) -> Bool {
         let folder = URL(fileURLWithPath: directory, isDirectory: true)
         do {
@@ -62,7 +76,11 @@ enum Snapshot {
         var ok = true
         for (index, theme) in BoardTheme.all.enumerated() {
             let slug = theme.name.lowercased().replacingOccurrences(of: " ", with: "-")
-            let board = BoardView(model: previewModel(samples)).environment(\.boardTheme, theme)
+            // Colour-coded boards show a boarding and a departed row, so every status colour appears.
+            let model = theme.statusColors == nil
+                ? previewModel(samples)
+                : previewModel(samples, boarding: [40211], departed: [41007])
+            let board = BoardView(model: model).environment(\.boardTheme, theme)
             ok = writeScreen(board, to: path(String(format: "board-%02d-%@.png", index + 1, slug))) && ok
         }
         ok = writeScreen(BoardView(model: previewModel([])), to: path("board-empty.png")) && ok

@@ -14,6 +14,7 @@ swift run                                     # launch the menu bar app
 swift run TerminalTerminal --scan [--all]     # print what the board would show, then exit
 swift run TerminalTerminal --snapshot out.png # render the board with sample rows to a PNG, then exit
 swift run TerminalTerminal --themes out.png   # render every style side by side, then exit
+swift run TerminalTerminal --stack out.png    # every style in one column, unlabelled, transparent background
 swift run TerminalTerminal --screens demos/screens  # one PNG per style, empty board, row states, settings light/dark
 swift run TerminalTerminal --demo             # real app on a scripted process table, driven by commands on stdin (see App/Demo.swift)
 ```

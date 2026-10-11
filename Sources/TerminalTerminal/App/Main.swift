@@ -11,6 +11,9 @@ enum TerminalTerminalMain {
         if let flag = arguments.firstIndex(of: "--themes"), flag + 1 < arguments.count {
             exit(Snapshot.renderThemes(to: arguments[flag + 1]) ? 0 : 1)
         }
+        if let flag = arguments.firstIndex(of: "--stack"), flag + 1 < arguments.count {
+            exit(Snapshot.renderStack(to: arguments[flag + 1]) ? 0 : 1)
+        }
         if let flag = arguments.firstIndex(of: "--screens"), flag + 1 < arguments.count {
             exit(Snapshot.renderScreens(to: arguments[flag + 1]) ? 0 : 1)
         }
