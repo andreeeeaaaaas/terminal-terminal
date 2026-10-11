@@ -36,11 +36,11 @@ swift run                          # or from the terminal
 ## Use it
 
 - **Click the menu bar plane** to show or hide the board.
-- **⌘-click or right-click it**, or click the gear on the board, for settings: board style, display (flap, LED, pixel, plain), accent colour, seconds, refresh interval, show all ports, reset the board position, quit. Picking a style resets display and accent to that style's own.
+- **⌘-click or right-click it**, or click the gear on the board, for settings: board style, display (flap, LED, pixel, plain), accent colour, seconds, refresh interval, show all ports, appear on new server, reset the board position, quit. Picking a style resets display and accent to that style's own.
 - **Drag the board** anywhere. It remembers where you put it.
 - **Hover a row and click ×** to send SIGTERM. If the process is still alive after 3 seconds, the row turns DELAYED and asks before sending SIGKILL.
 
-The board appears on its own when the first server starts, and stays until you hide it with the menu bar plane or the – button on the board.
+The board appears on its own when the first server starts, and stays until you hide it with the menu bar plane or the – button on the board. Turn on **Appear on new server** in settings to bring it back whenever another server starts, even after hiding it.
 
 ## Permissions
 
