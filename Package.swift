@@ -7,7 +7,9 @@ let package = Package(
     targets: [
         .executableTarget(
             name: "TerminalTerminal",
-            path: "Sources/TerminalTerminal"
+            path: "Sources/TerminalTerminal",
+            // Icon Composer source; scripts/bundle.sh compiles it with actool.
+            exclude: ["Icon"]
         )
     ]
 )
