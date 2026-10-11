@@ -61,6 +61,13 @@ struct SettingsView: View {
                         .controlSize(.mini)
                         .labelsHidden()
                 }
+                RowDivider()
+                SettingsRow("Appear on new server", detail: "Display the board anytime a new server is started.") {
+                    Toggle("Appear on new server", isOn: $settings.showOnArrival)
+                        .toggleStyle(.switch)
+                        .controlSize(.mini)
+                        .labelsHidden()
+                }
             }
 
             HStack {

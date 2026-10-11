@@ -65,8 +65,9 @@ struct BoardEntry: Identifiable, Equatable {
 final class BoardModel: ObservableObject {
     @Published private(set) var entries: [BoardEntry] = []
 
-    /// Called when the board goes from no live rows to at least one.
-    var onFirstArrival: (() -> Void)?
+    /// Called when new rows arrive after launch, with whether the board had no live rows before.
+    /// Not called for rows that appear because a setting changed.
+    var onArrival: ((_ isFirst: Bool) -> Void)?
 
     static let boardingDuration: TimeInterval = 5
     static let departedHold: TimeInterval = 4
@@ -147,6 +148,7 @@ final class BoardModel: ObservableObject {
     private func apply(_ results: [ScannedProcess]) {
         let now = Date()
         let wasEmpty = !entries.contains(where: \.isLive)
+        let isQuiet = quietNextScan
         var unmatched = Dictionary(results.map { ($0.pid, $0) }, uniquingKeysWith: { first, _ in first })
         var updated = entries
 
@@ -178,7 +180,7 @@ final class BoardModel: ObservableObject {
         }
 
         publish(updated)
-        if hasScanned, wasEmpty, !arrivals.isEmpty { onFirstArrival?() }
+        if hasScanned, !isQuiet, !arrivals.isEmpty { onArrival?(wasEmpty) }
         hasScanned = true
     }
 

@@ -43,7 +43,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         setUpStatusItem()
         setUpSettings()
 
-        model.onFirstArrival = { [unowned self] in boardController.show() }
+        model.onArrival = { [unowned self] isFirst in
+            if isFirst || settings.showOnArrival { boardController.show() }
+        }
         boardController.show()
         if let demo {
             Task { [model] in

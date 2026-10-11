@@ -12,6 +12,11 @@ final class Settings: ObservableObject {
         didSet { defaults.set(showAllPorts, forKey: Keys.showAllPorts) }
     }
 
+    /// Shows the board for every new row, not only the first after an empty board.
+    @Published var showOnArrival: Bool {
+        didSet { defaults.set(showOnArrival, forKey: Keys.showOnArrival) }
+    }
+
     /// A `BoardTheme` preset name. Choosing one clears the display and accent overrides.
     @Published var style: String {
         didSet {
@@ -46,6 +51,7 @@ final class Settings: ObservableObject {
     private enum Keys {
         static let pollInterval = "pollInterval"
         static let showAllPorts = "showAllPorts"
+        static let showOnArrival = "showOnArrival"
         static let style = "style"
         static let display = "display"
         static let accent = "accent"
@@ -57,6 +63,7 @@ final class Settings: ObservableObject {
         let stored = defaults.double(forKey: Keys.pollInterval)
         pollInterval = Self.pollIntervals.contains(stored) ? stored : 2
         showAllPorts = defaults.bool(forKey: Keys.showAllPorts)
+        showOnArrival = defaults.bool(forKey: Keys.showOnArrival)
         style = defaults.string(forKey: Keys.style) ?? BoardTheme.current.name
         display = defaults.string(forKey: Keys.display).flatMap(BoardTheme.Display.init(rawValue:))
         accent = defaults.string(forKey: Keys.accent).flatMap(BoardTheme.Accent.init(rawValue:))

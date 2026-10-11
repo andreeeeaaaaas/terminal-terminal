@@ -37,7 +37,7 @@ Status is BOARDING (just appeared), RUNNING, IDLE (near-zero CPU for about a min
 
 FLIGHT reads as airline plus destination: the label, then the project folder (from the `node_modules` path or working directory), so you can tell which project is which.
 
-The board appears automatically when the first process arrives and hides only when the user toggles it from the menu bar or clicks the minimise button on the board. With nothing running, it shows the header row over empty flap tiles.
+The board appears automatically when the first process arrives and hides only when the user toggles it from the menu bar or clicks the minimise button on the board. With "Appear on new server" on, every new arrival brings it back, even after hiding. With nothing running, it shows the header row over empty flap tiles.
 
 **Why not the existing option**
 `lsof`, Activity Monitor and port-manager menu bar apps already list ports. None of them are glanceable or fun to look at, and building it is the point.
@@ -51,12 +51,12 @@ The floating board shows real listening ports, refreshes on a poll, animates cha
 - Background dev-tool detection
 - Process label heuristics ("airline")
 - IDLE detection
-- Auto-show on first arrival
+- Auto-show on first arrival, or on every arrival when set
 - Empty board state
 - Split-flap character and text views
 - Row arrival and departure animations
 - Hover-to-kill control
-- Settings popover (style, display, accent colour, seconds, poll interval, show all ports, reset position)
+- Settings popover (style, display, accent colour, seconds, poll interval, show all ports, appear on new server, reset position)
 - Selectable board styles
 - Remembered board position
 - README (permissions, extending label heuristics)
