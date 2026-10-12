@@ -6,7 +6,7 @@
 > A floating macOS departure board that shows your running dev servers as flights, built as a portfolio piece.
 
 **Status:** Building
-**Last updated:** 2026-10-09
+**Last updated:** 2026-10-12
 
 ## How to use this document
 
@@ -31,7 +31,7 @@ Dev servers and long-running background tasks (watchers, builds) get left runnin
 The author, as a portfolio piece. Craft and motion quality matter as much as utility: it should be a delightful object first and a useful tool second.
 
 **What it does**
-A menu bar app that floats a small, always-on-top split-flap departure board over the desktop. Each row is either a process listening on a local TCP port or a recognised dev tool running in the background for over 5 minutes (GATE shows `--`). Columns are GATE (port, left-aligned), FLIGHT, PID, STATUS and TIME (uptime as `hh:mm:ss` ticking every second, or `hh:mm` with seconds off). Rows flip in when a process starts, flip to DEPARTED when it stops, and can be killed from the board.
+A menu bar app that floats a small, always-on-top split-flap departure board over the desktop. Each row is either a process listening on a local TCP port or a recognised dev tool running in the background for over 5 minutes (GATE shows `--`). Columns are GATE (port, left-aligned), FLIGHT, PID, STATUS and TIME (uptime as `hh:mm:ss` ticking every second, or `hh:mm` with seconds off). Rows flip in when a process starts, flip to DEPARTED when it stops, and can be killed from the board. Hovering the GATE of a recognised web server flips it to `OPEN↗` (on accent tiles in the flap style, in the accent colour in the others); clicking it opens `http://localhost:<port>` in the default browser.
 
 Status is BOARDING (just appeared), RUNNING, IDLE (near-zero CPU for about a minute) or DEPARTED (gone, about to be removed). While a kill is in progress: CLOSING (SIGTERM sent), DELAYED (still alive after 3 seconds, awaiting force-quit confirmation), DENIED (signal refused).
 
@@ -56,6 +56,7 @@ The floating board shows real listening ports, refreshes on a poll, animates cha
 - Split-flap character and text views
 - Row arrival and departure animations
 - Hover-to-kill control
+- Click GATE to open web servers in the browser
 - Settings popover (style, display, accent colour, seconds, poll interval, show all ports, appear on new server, reset position)
 - Selectable board styles
 - Remembered board position
@@ -81,7 +82,7 @@ The floating board shows real listening ports, refreshes on a poll, animates cha
 ## 3. Rules
 
 **Always**
-- Display text in uppercase and only from the flap glyph set (A–Z, 0–9, space, `: . - /`). Map `_` to `-` and anything else to a space.
+- Display text in uppercase and only from the flap glyph set (A–Z, 0–9, space, `: . - /`, plus `↗` for the open control). Map `_` to `-` and anything else to a space.
 - Run scans off the main thread and publish results on the main actor.
 - Invoke `lsof` and `ps` by absolute path with argument arrays. Send signals with the `kill(2)` syscall, not the `kill` command.
 - Show only the current user's processes. Hide processes spawned by GUI apps (Raycast, editors) and anything inside an `.app` bundle or system directory, unless a label rule matches it.
@@ -97,7 +98,7 @@ The floating board shows real listening ports, refreshes on a poll, animates cha
 **Patterns**
 - `SplitFlapCharacter` owns one cell's change sequence and draws it in the theme's cell style (flap, plain or dots); `SplitFlapText` composes cells for a field. Rows are built only from `SplitFlapText`.
 - Scanner → diff → view model → views. The scanner knows nothing about UI; the diff assigns BOARDING / RUNNING / DEPARTED.
-- Label heuristics live in one table-driven file, ordered most to least specific, with process name as the fallback. The same table decides which portless processes count as background dev tools; shells, editors and one-shot CLIs (git, plain ssh) never match. SSH port forwards (`-L`, `-R`, `-D`) do, since they're long-running.
+- Label heuristics live in one table-driven file, ordered most to least specific, with process name as the fallback. A rule's `web` flag marks servers whose port opens in a browser; generic interpreters (NODE, PYTHON) are never flagged. The same table decides which portless processes count as background dev tools; shells, editors and one-shot CLIs (git, plain ssh) never match. SSH port forwards (`-L`, `-R`, `-D`) do, since they're long-running.
 
 ## 4. Not Doing
 

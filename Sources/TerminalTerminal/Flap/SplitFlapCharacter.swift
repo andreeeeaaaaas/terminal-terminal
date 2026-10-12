@@ -13,56 +13,75 @@ struct SplitFlapCharacter: View {
     var delay: Double = 0
     /// False goes straight to the target, for ticking digits.
     var scrambles = true
+    /// Flap: accent tile with a board-coloured glyph, like the board's buttons, turning with
+    /// the flap. Other styles have no tile, so the glyph takes the accent instead.
+    var inverted = false
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.boardTheme) private var theme
 
     @State private var current: Character
     @State private var next: Character
+    @State private var currentInverted = false
+    @State private var nextInverted = false
     @State private var topAngle: Double = 0
     @State private var bottomAngle: Double = 90
 
     private static let halfTurn: Double = 0.055
 
-    init(target: Character, color: Color, delay: Double = 0, scrambles: Bool = true, startsSettled: Bool = false) {
+    init(target: Character, color: Color, delay: Double = 0, scrambles: Bool = true, inverted: Bool = false, startsSettled: Bool = false) {
         self.target = target
         self.color = color
         self.delay = delay
         self.scrambles = scrambles
+        self.inverted = inverted
         let initial: Character = startsSettled ? target : " "
         _current = State(initialValue: initial)
         _next = State(initialValue: initial)
+        _currentInverted = State(initialValue: startsSettled && inverted)
+        _nextInverted = State(initialValue: startsSettled && inverted)
+    }
+
+    private struct Target: Equatable {
+        let glyph: Character
+        let inverted: Bool
     }
 
     var body: some View {
-        face.task(id: target) { await flip(to: target) }
+        face.task(id: Target(glyph: target, inverted: inverted)) { await flip(to: target, inverted: inverted) }
     }
 
     @ViewBuilder
     private var face: some View {
         switch theme.cellStyle {
         case .flap:
-            FlapFace(current: current, next: next, topAngle: topAngle, bottomAngle: bottomAngle, color: color)
+            FlapFace(
+                current: current, next: next, topAngle: topAngle, bottomAngle: bottomAngle, color: color,
+                currentInverted: currentInverted, nextInverted: nextInverted
+            )
         case .plain:
-            PlainCell(glyph: current, color: color)
+            PlainCell(glyph: current, color: currentInverted ? theme.accent : color)
         case .dots(let shape):
-            DotMatrixCell(glyph: current, color: color, shape: shape)
+            DotMatrixCell(glyph: current, color: currentInverted ? theme.accent : color, shape: shape)
         }
     }
 
-    private func flip(to target: Character) async {
+    private func flip(to target: Character, inverted: Bool) async {
         // A previous sequence may have been cancelled mid-turn. Snap to rest first.
         withoutAnimation {
             next = current
+            nextInverted = currentInverted
             topAngle = 0
             bottomAngle = 90
         }
-        guard target != current else { return }
+        guard target != current || inverted != currentInverted else { return }
 
         if reduceMotion {
             withoutAnimation {
                 current = target
                 next = target
+                currentInverted = inverted
+                nextInverted = inverted
             }
             return
         }
@@ -74,21 +93,31 @@ struct SplitFlapCharacter: View {
 
         guard theme.cellStyle == .flap else {
             for glyph in sequence {
-                withoutAnimation { current = glyph }
+                withoutAnimation {
+                    current = glyph
+                    currentInverted = inverted
+                }
                 if glyph != target, !(await pause(Self.halfTurn * 1.4)) { return }
             }
-            withoutAnimation { next = target }
+            withoutAnimation {
+                next = target
+                nextInverted = inverted
+            }
             return
         }
 
         for glyph in sequence {
-            withoutAnimation { next = glyph }
+            withoutAnimation {
+                next = glyph
+                nextInverted = inverted
+            }
             withAnimation(.easeIn(duration: Self.halfTurn)) { topAngle = -90 }
             guard await pause(Self.halfTurn) else { return }
             withAnimation(.easeOut(duration: Self.halfTurn)) { bottomAngle = 0 }
             guard await pause(Self.halfTurn) else { return }
             withoutAnimation {
                 current = glyph
+                currentInverted = inverted
                 topAngle = 0
                 bottomAngle = 90
             }
@@ -121,6 +150,8 @@ struct FlapFace: View {
     let bottomAngle: Double
     /// Defaults to the theme's ink.
     var color: Color?
+    var currentInverted = false
+    var nextInverted = false
 
     @Environment(\.boardTheme) private var theme
 
@@ -129,15 +160,15 @@ struct FlapFace: View {
         let metrics = theme.metrics
         return VStack(spacing: metrics.hinge) {
             ZStack {
-                FlapHalf(glyph: next, edge: .top, color: color)
-                FlapHalf(glyph: current, edge: .top, color: color)
+                FlapHalf(glyph: next, edge: .top, color: color, inverted: nextInverted)
+                FlapHalf(glyph: current, edge: .top, color: color, inverted: currentInverted)
                     .overlay(Color.black.opacity(shade(topAngle)))
                     .rotation3DEffect(.degrees(topAngle), axis: (x: 1, y: 0, z: 0), anchor: .bottom, perspective: 0.6)
             }
             .zIndex(1)
             ZStack {
-                FlapHalf(glyph: current, edge: .bottom, color: color)
-                FlapHalf(glyph: next, edge: .bottom, color: color)
+                FlapHalf(glyph: current, edge: .bottom, color: color, inverted: currentInverted)
+                FlapHalf(glyph: next, edge: .bottom, color: color, inverted: nextInverted)
                     .overlay(Color.black.opacity(shade(bottomAngle)))
                     .rotation3DEffect(.degrees(bottomAngle), axis: (x: 1, y: 0, z: 0), anchor: .top, perspective: 0.6)
             }
@@ -156,6 +187,7 @@ private struct FlapHalf: View {
     let glyph: Character
     let edge: VerticalEdge
     let color: Color
+    var inverted = false
 
     @Environment(\.boardTheme) private var theme
 
@@ -165,13 +197,22 @@ private struct FlapHalf: View {
         let metrics = theme.metrics
         return ZStack {
             RoundedRectangle(cornerRadius: theme.tileCornerRadius, style: .continuous)
-                .fill(edge == .top ? theme.tileTop : theme.tileBottom)
-            Text(String(glyph))
-                .font(theme.glyphFont())
-                .foregroundStyle(color)
+                .fill(tile)
+            GlyphLabel(glyph: glyph)
+                .foregroundStyle(inverted ? theme.board : color)
         }
         .frame(width: metrics.cellWidth, height: metrics.cellHeight)
         .frame(width: metrics.cellWidth, height: metrics.halfHeight, alignment: edge == .top ? .top : .bottom)
         .clipped()
+    }
+
+    private var tile: Color {
+        switch (inverted, edge) {
+        case (false, .top): return theme.tileTop
+        case (false, .bottom): return theme.tileBottom
+        case (true, .top): return theme.accent
+        // The lower half sits slightly in shadow, as on the dark tiles.
+        case (true, .bottom): return theme.accent.opacity(0.9)
+        }
     }
 }

@@ -6,6 +6,8 @@ struct ScannedProcess: Equatable {
     /// Lowest listening port, or nil for a portless background task.
     let port: Int?
     let label: String
+    /// Matched a `web` label rule: clicking GATE opens the port in a browser.
+    let isWebServer: Bool
     let destination: String
     let command: String
     let uptime: TimeInterval
@@ -41,7 +43,7 @@ final class ProcessScanner: @unchecked Sendable {
         func isNoise(_ pid: Int32) -> Bool {
             guard let command = commands[pid] else { return true }
             if LabelHeuristics.isHidden(command) { return true }
-            let labelled = LabelHeuristics.label(for: command) != nil
+            let labelled = LabelHeuristics.rule(for: command) != nil
             if (command.isBundled || command.isSystem) && !labelled { return true }
             return isSpawnedByApp(pid, table: table, commands: commands)
         }
@@ -61,7 +63,7 @@ final class ProcessScanner: @unchecked Sendable {
         for (pid, row) in table where row.uid == uid && portOwners[pid] == nil {
             guard row.uptime >= Self.backgroundTaskMinimumUptime,
                   let command = commands[pid],
-                  LabelHeuristics.label(for: command) != nil,
+                  LabelHeuristics.rule(for: command) != nil,
                   !isNoise(pid)
             else { continue }
             background.insert(pid)
@@ -84,10 +86,12 @@ final class ProcessScanner: @unchecked Sendable {
 
         return pids.compactMap { pid in
             guard let row = table[pid], let command = commands[pid] else { return nil }
+            let rule = LabelHeuristics.rule(for: command)
             return ScannedProcess(
                 pid: pid,
                 port: portOwners[pid],
-                label: LabelHeuristics.label(for: command) ?? command.executable,
+                label: rule?.label ?? command.executable,
+                isWebServer: rule?.isWeb ?? false,
                 destination: LabelHeuristics.destination(for: command, cwd: cwdCache[pid]),
                 command: row.command,
                 uptime: row.uptime,

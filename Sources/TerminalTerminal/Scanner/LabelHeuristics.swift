@@ -6,43 +6,45 @@ import Foundation
 /// wins, so put frameworks before the interpreters that run them (ASTRO before NODE).
 /// A matching rule also makes a portless process eligible as a background task, and lets
 /// a process inside an `.app` bundle or system directory through the noise filter.
+/// Mark `web: true` only for servers whose port serves a page, so clicking GATE opens it.
+/// Interpreters stay unmarked: `node` may be a web server or a debugger socket.
 enum LabelHeuristics {
     static let rules: [LabelRule] = [
         // Frameworks and dev servers
-        LabelRule("NEXT", .token("next-server"), .phrase("next dev"), .phrase("next start"), .phrase("next/dist")),
-        LabelRule("ASTRO", .token("astro")),
-        LabelRule("NUXT", .token("nuxt"), .token("nuxi")),
-        LabelRule("REMIX", .token("remix")),
-        LabelRule("SVELTE", .phrase("svelte-kit")),
-        LabelRule("STORYBOOK", .token("storybook")),
-        LabelRule("VITEST", .token("vitest")),
+        LabelRule("NEXT", web: true, .token("next-server"), .phrase("next dev"), .phrase("next start"), .phrase("next/dist")),
+        LabelRule("ASTRO", web: true, .token("astro")),
+        LabelRule("NUXT", web: true, .token("nuxt"), .token("nuxi")),
+        LabelRule("REMIX", web: true, .token("remix")),
+        LabelRule("SVELTE", web: true, .phrase("svelte-kit")),
+        LabelRule("STORYBOOK", web: true, .token("storybook")),
+        LabelRule("VITEST", web: true, .token("vitest")),
         LabelRule("JEST", .token("jest")),
-        LabelRule("VITE", .token("vite")),
-        LabelRule("WEBPACK", .token("webpack"), .token("webpack-dev-server")),
-        LabelRule("PARCEL", .token("parcel")),
-        LabelRule("ESBUILD", .token("esbuild")),
+        LabelRule("VITE", web: true, .token("vite")),
+        LabelRule("WEBPACK", web: true, .token("webpack"), .token("webpack-dev-server")),
+        LabelRule("PARCEL", web: true, .token("parcel")),
+        LabelRule("ESBUILD", web: true, .token("esbuild")),
         LabelRule("TSC", .token("tsc")),
         LabelRule("NODEMON", .token("nodemon")),
-        LabelRule("ELEVENTY", .token("eleventy")),
-        LabelRule("GATSBY", .token("gatsby")),
+        LabelRule("ELEVENTY", web: true, .token("eleventy")),
+        LabelRule("GATSBY", web: true, .token("gatsby")),
         LabelRule("EXPO", .token("expo")),
         LabelRule("METRO", .phrase("react-native start")),
-        LabelRule("WRANGLER", .token("wrangler")),
-        LabelRule("RAILS", .phrase("rails server"), .phrase("rails s"), .token("puma")),
+        LabelRule("WRANGLER", web: true, .token("wrangler")),
+        LabelRule("RAILS", web: true, .phrase("rails server"), .phrase("rails s"), .token("puma")),
         LabelRule("SIDEKIQ", .token("sidekiq")),
-        LabelRule("JEKYLL", .token("jekyll")),
-        LabelRule("DJANGO", .phrase("runserver")),
-        LabelRule("FLASK", .token("flask")),
-        LabelRule("UVICORN", .token("uvicorn")),
-        LabelRule("GUNICORN", .token("gunicorn")),
-        LabelRule("JUPYTER", .tokenPrefix("jupyter")),
-        LabelRule("PY HTTP", .phrase("http.server")),
-        LabelRule("HUGO", .token("hugo")),
-        LabelRule("ZOLA", .token("zola")),
+        LabelRule("JEKYLL", web: true, .token("jekyll")),
+        LabelRule("DJANGO", web: true, .phrase("runserver")),
+        LabelRule("FLASK", web: true, .token("flask")),
+        LabelRule("UVICORN", web: true, .token("uvicorn")),
+        LabelRule("GUNICORN", web: true, .token("gunicorn")),
+        LabelRule("JUPYTER", web: true, .tokenPrefix("jupyter")),
+        LabelRule("PY HTTP", web: true, .phrase("http.server")),
+        LabelRule("HUGO", web: true, .token("hugo")),
+        LabelRule("ZOLA", web: true, .token("zola")),
         LabelRule("GO", .phrase("go run"), .phrase("/go-build")),
         LabelRule("CARGO", .token("cargo")),
-        LabelRule("TRUNK", .token("trunk")),
-        LabelRule("LARAVEL", .phrase("artisan serve")),
+        LabelRule("TRUNK", web: true, .token("trunk")),
+        LabelRule("LARAVEL", web: true, .phrase("artisan serve")),
         LabelRule("GRADLE", .phrase("gradledaemon")),
 
         // Services and tunnels
@@ -52,10 +54,10 @@ enum LabelHeuristics {
         LabelRule("MONGO", .token("mongod")),
         LabelRule("MYSQL", .token("mysqld"), .token("mariadbd")),
         LabelRule("OLLAMA", .token("ollama")),
-        LabelRule("NGROK", .token("ngrok")),
+        LabelRule("NGROK", web: true, .token("ngrok")),
         LabelRule("TUNNEL", .token("cloudflared")),
-        LabelRule("CADDY", .token("caddy")),
-        LabelRule("NGINX", .token("nginx")),
+        LabelRule("CADDY", web: true, .token("caddy")),
+        LabelRule("NGINX", web: true, .token("nginx")),
         LabelRule("SSH", .custom { $0.executable == "ssh" && $0.raw.range(of: #" -\w*[LRD]"#, options: .regularExpression) != nil }),
 
         // Interpreters: generic fallbacks, keep last
@@ -78,8 +80,8 @@ enum LabelHeuristics {
     /// MCP servers are spawned and owned by AI tools, not by you.
     static let hiddenTokenFragments: [String] = ["mcp"]
 
-    static func label(for command: ParsedCommand) -> String? {
-        rules.first { $0.matches(command) }?.label
+    static func rule(for command: ParsedCommand) -> LabelRule? {
+        rules.first { $0.matches(command) }
     }
 
     static func isHidden(_ command: ParsedCommand) -> Bool {
@@ -116,10 +118,13 @@ struct LabelRule {
     }
 
     let label: String
+    /// The port serves a web page, so the board offers to open it.
+    let isWeb: Bool
     let matchers: [Matcher]
 
-    init(_ label: String, _ matchers: Matcher...) {
+    init(_ label: String, web: Bool = false, _ matchers: Matcher...) {
         self.label = label
+        isWeb = web
         self.matchers = matchers
     }
 

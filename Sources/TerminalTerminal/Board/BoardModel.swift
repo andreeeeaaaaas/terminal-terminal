@@ -39,6 +39,12 @@ struct BoardEntry: Identifiable, Equatable {
         return false
     }
 
+    /// A web server's page, while the row is live.
+    var url: URL? {
+        guard isLive, process.isWebServer, let port = process.port else { return nil }
+        return URL(string: "http://localhost:\(port)")
+    }
+
     var canTerminate: Bool {
         switch phase {
         case .boarding, .active, .denied: return true
@@ -64,6 +70,8 @@ struct BoardEntry: Identifiable, Equatable {
 @MainActor
 final class BoardModel: ObservableObject {
     @Published private(set) var entries: [BoardEntry] = []
+    /// PIDs whose GATE shows OPEN in a static board, as if hovered.
+    private(set) var previewsOpen: Set<Int32> = []
 
     /// Called when new rows arrive after launch, with whether the board had no live rows before.
     /// Not called for rows that appear because a setting changed.
@@ -92,9 +100,10 @@ final class BoardModel: ObservableObject {
     }
 
     /// A static board for snapshots.
-    init(settings: Settings, preview processes: [ScannedProcess], idle: Set<Int32> = [], delayed: Set<Int32> = [], boarding: Set<Int32> = [], departed: Set<Int32> = []) {
+    init(settings: Settings, preview processes: [ScannedProcess], idle: Set<Int32> = [], delayed: Set<Int32> = [], boarding: Set<Int32> = [], departed: Set<Int32> = [], open: Set<Int32> = []) {
         self.settings = settings
         source = ProcessScanner()
+        previewsOpen = open
         entries = processes.map {
             BoardEntry(
                 process: $0,

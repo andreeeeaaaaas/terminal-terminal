@@ -3,24 +3,38 @@ import SwiftUI
 
 struct BoardRow: View {
     let entry: BoardEntry
+    /// Shows GATE as OPEN without hovering, for static boards.
+    var previewsOpen = false
     var onTerminate: () -> Void
     var onForceQuit: () -> Void
     var onCancelForceQuit: () -> Void
 
     @State private var isHovering = false
+    @State private var isHoveringGate = false
+    /// Set on the first hover over GATE, after it has flipped in with the row.
+    @State private var gateFlipsQuietly = false
     @Environment(\.flapStartsSettled) private var isStaticRender
     @Environment(\.boardTheme) private var theme
+    @Environment(\.openURL) private var openURL
+
+    private static let openText = "OPEN\(FlapGlyphs.openArrow)"
+
+    private var showsOpen: Bool {
+        entry.url != nil && (isHoveringGate || previewsOpen)
+    }
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 1)) { context in
             RowLayout(
-                gate: entry.isClearing ? "" : entry.process.port.map(String.init) ?? "--",
+                gate: entry.isClearing ? "" : showsOpen ? Self.openText : entry.process.port.map(String.init) ?? "--",
                 flight: entry.isClearing ? "" : flight,
                 pid: entry.isClearing ? "" : String(entry.pid),
                 status: entry.status,
                 time: entry.isClearing ? "" : Self.uptime(context.date.timeIntervalSince(entry.startedAt), seconds: theme.showsSeconds),
                 statusColor: statusColor,
-                dimmed: !entry.isLive
+                dimmed: !entry.isLive,
+                gateInverted: showsOpen,
+                gateFlipsQuietly: gateFlipsQuietly
             )
         }
         .padding(.vertical, theme.rowPadding)
@@ -28,6 +42,7 @@ struct BoardRow: View {
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibilityText)
         .overlay(alignment: .trailing) { control }
+        .overlay(alignment: .leading) { openControl }
         .background(
             RoundedRectangle(cornerRadius: 4, style: .continuous)
                 .fill(Color.white.opacity(isHovering && entry.isLive ? 0.035 : 0))
@@ -75,6 +90,29 @@ struct BoardRow: View {
             .help("Stop process (SIGTERM)")
             .accessibilityLabel("Stop \(entry.process.label)")
             .transition(.opacity)
+        }
+    }
+
+    /// Covers GATE: hovering flips it to OPEN, clicking opens the page.
+    @ViewBuilder
+    private var openControl: some View {
+        if let url = entry.url {
+            Color.clear
+                .frame(width: theme.metrics.width(ofCells: theme.cells(.gate)))
+                .contentShape(Rectangle())
+                // A tap, not a button, so a drag that starts here still moves the board.
+                .onTapGesture { openURL(url) }
+                .background {
+                    if !isStaticRender { HoverTracker(isHovering: $isHoveringGate) }
+                }
+                .onChange(of: isHoveringGate) { hovering in
+                    if hovering { gateFlipsQuietly = true }
+                }
+                .onDisappear { isHoveringGate = false }
+                .accessibilityElement()
+                .accessibilityLabel("Open \(entry.process.label) in browser")
+                .accessibilityAddTraits(.isButton)
+                .accessibilityAction { openURL(url) }
         }
     }
 

@@ -12,7 +12,7 @@ import SwiftUI
 enum Snapshot {
     static func render(to path: String) -> Bool {
         let view = VStack(alignment: .leading, spacing: 24) {
-            BoardView(model: previewModel(samples, delayed: [41007]))
+            BoardView(model: previewModel(samples, delayed: [41007], open: [7862]))
             BoardView(model: previewModel([]))
             HStack(spacing: 8) {
                 FlapFace(current: "A", next: "B", topAngle: 0, bottomAngle: 90)
@@ -84,7 +84,7 @@ enum Snapshot {
             ok = writeScreen(board, to: path(String(format: "board-%02d-%@.png", index + 1, slug))) && ok
         }
         ok = writeScreen(BoardView(model: previewModel([])), to: path("board-empty.png")) && ok
-        ok = writeScreen(BoardView(model: previewModel(samples, delayed: [41007], boarding: [40211], departed: [40388])), to: path("board-states.png")) && ok
+        ok = writeScreen(BoardView(model: previewModel(samples, delayed: [41007], boarding: [40211], departed: [40388], open: [7862])), to: path("board-states.png")) && ok
         ok = renderThemes(to: path("themes.png"), background: .clear) && ok
         ok = writeSettings(appearance: .aqua, to: path("settings-light.png")) && ok
         ok = writeSettings(appearance: .darkAqua, to: path("settings-dark.png")) && ok
@@ -161,7 +161,8 @@ enum Snapshot {
         _ processes: [ScannedProcess],
         delayed: Set<Int32> = [],
         boarding: Set<Int32> = [],
-        departed: Set<Int32> = []
+        departed: Set<Int32> = [],
+        open: Set<Int32> = []
     ) -> BoardModel {
         BoardModel(
             settings: Settings(defaults: UserDefaults(suiteName: "snapshot")!),
@@ -169,15 +170,16 @@ enum Snapshot {
             idle: [11769],
             delayed: delayed,
             boarding: boarding,
-            departed: departed
+            departed: departed,
+            open: open
         )
     }
 
     static let samples: [ScannedProcess] = [
-        ScannedProcess(pid: 7862, port: 4321, label: "ASTRO", destination: "oceanheroes", command: "astro dev", uptime: 325_000, cpu: 0),
-        ScannedProcess(pid: 11769, port: 4323, label: "ASTRO", destination: "sandrathoma-site", command: "astro dev", uptime: 30_000, cpu: 0),
-        ScannedProcess(pid: 40211, port: 5173, label: "VITE", destination: "terminal-ui", command: "vite", uptime: 1_260, cpu: 2.1),
-        ScannedProcess(pid: 40388, port: nil, label: "TSC", destination: "api", command: "tsc --watch", uptime: 4_020, cpu: 0.6),
-        ScannedProcess(pid: 41007, port: 8000, label: "DJANGO", destination: "backoffice", command: "python manage.py runserver", uptime: 540, cpu: 1.0),
+        ScannedProcess(pid: 7862, port: 4321, label: "ASTRO", isWebServer: true, destination: "oceanheroes", command: "astro dev", uptime: 325_000, cpu: 0),
+        ScannedProcess(pid: 11769, port: 4323, label: "ASTRO", isWebServer: true, destination: "sandrathoma-site", command: "astro dev", uptime: 30_000, cpu: 0),
+        ScannedProcess(pid: 40211, port: 5173, label: "VITE", isWebServer: true, destination: "terminal-ui", command: "vite", uptime: 1_260, cpu: 2.1),
+        ScannedProcess(pid: 40388, port: nil, label: "TSC", isWebServer: false, destination: "api", command: "tsc --watch", uptime: 4_020, cpu: 0.6),
+        ScannedProcess(pid: 41007, port: 8000, label: "DJANGO", isWebServer: true, destination: "backoffice", command: "python manage.py runserver", uptime: 540, cpu: 1.0),
     ]
 }

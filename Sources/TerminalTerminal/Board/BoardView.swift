@@ -60,6 +60,7 @@ struct BoardView: View {
             ForEach(model.entries) { entry in
                 BoardRow(
                     entry: entry,
+                    previewsOpen: model.previewsOpen.contains(entry.pid),
                     onTerminate: { model.terminate(entry.id) },
                     onForceQuit: { model.forceQuit(entry.id) },
                     onCancelForceQuit: { model.cancelForceQuit(entry.id) }
@@ -226,12 +227,16 @@ struct RowLayout: View {
     var statusColor: Color?
     /// Departing rows fade their text.
     var dimmed = false
+    /// GATE on accent tiles, while it reads OPEN.
+    var gateInverted = false
+    /// GATE flips straight to new text, still rippling: hover feedback shouldn't lag.
+    var gateFlipsQuietly = false
 
     @Environment(\.boardTheme) private var theme
 
     var body: some View {
         HStack(spacing: BoardColumn.gap) {
-            field(gate, .gate)
+            field(gate, .gate, scrambles: !gateFlipsQuietly, inverted: gateInverted)
             field(flight, .flight)
             field(pid, .pid)
             SplitFlapText(text: status, width: theme.cells(.status), color: statusColor)
@@ -240,14 +245,16 @@ struct RowLayout: View {
         }
     }
 
-    private func field(_ text: String, _ column: BoardColumn, scrambles: Bool = true) -> some View {
+    private func field(_ text: String, _ column: BoardColumn, scrambles: Bool = true, inverted: Bool = false) -> some View {
         let ink = theme.columnInk[column] ?? theme.ink
         return SplitFlapText(
             text: text,
             width: theme.cells(column),
             alignment: column.alignment,
             color: dimmed ? ink.opacity(0.6) : ink,
-            scrambles: scrambles
+            scrambles: scrambles,
+            ripples: column != .time,
+            inverted: inverted
         )
     }
 }

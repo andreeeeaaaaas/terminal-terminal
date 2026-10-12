@@ -10,6 +10,10 @@ struct SplitFlapText: View {
     var color: Color?
     /// False goes straight to each new character, for clocks and counters.
     var scrambles = true
+    /// Cells start one after another, left to right. Defaults to `scrambles`.
+    var ripples: Bool?
+    /// Accent tiles with board-coloured glyphs.
+    var inverted = false
 
     @Environment(\.boardTheme) private var theme
     @Environment(\.flapStartsSettled) private var startsSettled
@@ -23,8 +27,9 @@ struct SplitFlapText: View {
                 SplitFlapCharacter(
                     target: cells[index],
                     color: color ?? theme.ink,
-                    delay: scrambles ? Double(index) * Self.ripple : 0,
+                    delay: (ripples ?? scrambles) ? Double(index) * Self.ripple : 0,
                     scrambles: scrambles,
+                    inverted: inverted,
                     startsSettled: startsSettled
                 )
             }

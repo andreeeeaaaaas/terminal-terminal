@@ -2,7 +2,9 @@ import SwiftUI
 
 /// The characters a physical flap drum carries. Anything else is mapped before display.
 enum FlapGlyphs {
-    static let set: [Character] = Array(" ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789:.-/")
+    /// The external-link arrow, drawn as a symbol in text faces. Only the open control uses it.
+    static let openArrow: Character = "↗"
+    static let set: [Character] = Array(" ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789:.-/↗")
     private static let lookup = Set(set)
     private static let scramble: [Character] = Array("ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
 

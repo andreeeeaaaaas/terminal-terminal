@@ -1,5 +1,22 @@
 import SwiftUI
 
+/// A glyph in the theme's text face. The open arrow is a symbol, since text faces lack it.
+struct GlyphLabel: View {
+    let glyph: Character
+
+    @Environment(\.boardTheme) private var theme
+
+    var body: some View {
+        if glyph == FlapGlyphs.openArrow {
+            Image(systemName: "arrow.up.right")
+                .font(theme.font(size: theme.metrics.fontSize * 0.8, weight: .bold))
+        } else {
+            Text(String(glyph))
+                .font(theme.glyphFont())
+        }
+    }
+}
+
 /// A bare glyph in a fixed cell, for the plain styles.
 struct PlainCell: View {
     let glyph: Character
@@ -8,8 +25,7 @@ struct PlainCell: View {
     @Environment(\.boardTheme) private var theme
 
     var body: some View {
-        Text(String(glyph))
-            .font(theme.glyphFont())
+        GlyphLabel(glyph: glyph)
             .foregroundStyle(color)
             // Proportional glyphs (M, W) can be wider than the cell: overflow, never truncate.
             .fixedSize()
@@ -122,6 +138,7 @@ enum DotFont {
             ".": [".....", ".....", ".....", ".....", ".....", ".##..", ".##.."],
             "-": [".....", ".....", ".....", "#####", ".....", ".....", "....."],
             "/": [".....", "....#", "...#.", "..#..", ".#...", "#....", "....."],
+            "↗": [".....", ".####", "...##", "..#.#", ".#..#", "#....", "....."],
         ]
         return source.mapValues { lines in
             lines.map { line in

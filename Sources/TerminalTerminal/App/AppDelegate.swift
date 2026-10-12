@@ -35,6 +35,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             ThemedBoard(
                 model: model,
                 settings: settings,
+                opensLinks: demo == nil,
                 onOpenSettings: { [unowned self] gear in showSettings(from: .board(gear)) },
                 onHide: { [unowned self] in boardController.hide() }
             )
@@ -159,11 +160,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 private struct ThemedBoard: View {
     @ObservedObject var model: BoardModel
     @ObservedObject var settings: Settings
+    /// False in demos, whose ports are made up.
+    var opensLinks: Bool
     var onOpenSettings: (NSView) -> Void
     var onHide: () -> Void
 
     var body: some View {
         BoardView(model: model, onOpenSettings: onOpenSettings, onHide: onHide)
             .environment(\.boardTheme, settings.theme)
+            .environment(\.openURL, OpenURLAction { [opensLinks] _ in opensLinks ? .systemAction : .handled })
     }
 }
