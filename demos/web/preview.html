@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Embed preview</title>
+<style>
+  body { margin: 0; padding: 48px 16px; background: #fff; font: 16px/1.5 -apple-system, system-ui, sans-serif; color: #1c1917; }
+  /* Preview only: #dark forces dark mode without changing the system setting. */
+  html.dark body { background: #0c0a09; color: #e7e5e4; }
+  @media (prefers-color-scheme: dark) { html:not(.light) body { background: #0c0a09; color: #e7e5e4; } }
+  main { max-width: 720px; margin: 0 auto; }
+
+  /* --- Copy from here --- */
+  .tt-embed {
+    display: block;
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    border: 1px solid #f5f5f4;
+    border-radius: 9px;
+    background: #fafaf9;
+  }
+  @media (prefers-color-scheme: dark) {
+    .tt-embed { border-color: #292524; background: #1c1917; }
+  }
+  /* --- to here --- */
+  html.dark .tt-embed { border-color: #292524; background: #1c1917; }
+  html.light .tt-embed { border-color: #f5f5f4; background: #fafaf9; }
+</style>
+</head>
+<body>
+<script>document.documentElement.className = location.hash.slice(1);</script>
+<main>
+  <p>Text above the embed, to judge spacing against the page.</p>
+  <iframe class="tt-embed" src="index.html" title="Terminal, Terminal! interactive demo" loading="lazy"></iframe>
+  <p>Text below the embed.</p>
+</main>
+<script>addEventListener("hashchange", () => document.documentElement.className = location.hash.slice(1));</script>
+</body>
+</html>
