@@ -2,29 +2,29 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<key>CFBundleDisplayName</key>
-	<string>Terminal Terminal</string>
-	<key>CFBundleExecutable</key>
-	<string>TerminalTerminal</string>
-	<key>CFBundleIconFile</key>
-	<string>Icon</string>
-	<key>CFBundleIconName</key>
-	<string>Icon</string>
-	<key>CFBundleIdentifier</key>
-	<string>com.andreasthoma.TerminalTerminal</string>
-	<key>CFBundleName</key>
-	<string>Terminal Terminal</string>
-	<key>CFBundlePackageType</key>
-	<string>APPL</string>
-	<key>CFBundleShortVersionString</key>
-	<string>0.3.0</string>
-	<key>CFBundleVersion</key>
-	<string>4</string>
-	<key>LSMinimumSystemVersion</key>
-	<string>13.0</string>
-	<key>LSUIElement</key>
-	<true/>
-	<key>NSHighResolutionCapable</key>
-	<true/>
+    <key>CFBundleName</key>
+    <string>Terminal Terminal</string>
+    <key>CFBundleDisplayName</key>
+    <string>Terminal Terminal</string>
+    <key>CFBundleIdentifier</key>
+    <string>com.andreasthoma.TerminalTerminal</string>
+    <key>CFBundleExecutable</key>
+    <string>TerminalTerminal</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleIconFile</key>
+    <string>Icon</string>
+    <key>CFBundleIconName</key>
+    <string>Icon</string>
+    <key>CFBundleShortVersionString</key>
+    <string>0.3.0</string>
+    <key>CFBundleVersion</key>
+    <string>4</string>
+    <key>LSMinimumSystemVersion</key>
+    <string>13.0</string>
+    <key>LSUIElement</key>
+    <true/>
+    <key>NSHighResolutionCapable</key>
+    <true/>
 </dict>
 </plist>
