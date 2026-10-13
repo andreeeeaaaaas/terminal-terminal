@@ -1,0 +1,27 @@
+# LinkedIn loop, 15 s, no captions: stop a server, hover GATE to flip it to OPEN, then the server comes back and is RUNNING again before the loop point (boarding lasts 5 s).
+# Ends as it starts (same rows, pointer off the board) so it loops. Django is the last row, so it reboards into the same slot.
+name: linkedin-loop
+platform: macos
+app:
+  build: [swift, build]
+  launch: [.build/debug/TerminalTerminal, --demo]
+  cwd: ..
+output:
+  formats: [mp4]
+  captions: none
+pointer:
+  start: [560, 520]
+setup:
+  - add oceanheroes
+  - add terminal-ui
+  - add backoffice
+  - start
+steps:
+  - { at: 1.5, hover: "DJANGO backoffice" }
+  - { at: 2.3, click: "Stop DJANGO", note: "click its ×" }
+  - { at: 2.7, expect: "departed", within: 2 }
+  - { at: 4.0, hover: "Open ASTRO in browser" }
+  - { at: 5.6, hover: "Open VITE in browser" }
+  - { at: 7.0, hover: { point: [560, 520] }, note: move the pointer off the board }
+  - { at: 8.0, state: add backoffice, note: the server starts again and boards }
+  - { at: 15.0, end: true }
