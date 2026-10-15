@@ -5,6 +5,9 @@ struct ScannedProcess: Equatable {
     let pid: Int32
     /// Lowest listening port, or nil for a portless background task.
     let port: Int?
+    /// The address to open instead of `localhost`, set only when another row listens on the
+    /// same port at a different address (IPv4 and IPv6 sockets can share a port).
+    var host: String? = nil
     let label: String
     /// Matched a `web` label rule: clicking GATE opens the port in a browser.
     let isWebServer: Bool
@@ -52,7 +55,7 @@ final class ProcessScanner: @unchecked Sendable {
         var portOwners: [Int32: Int] = [:]
         for (pid, ports) in listening {
             guard let row = table[pid], row.uid == uid else { continue }
-            let eligible = showAll ? ports : ports.filter { $0 >= Self.minimumPort }
+            let eligible = showAll ? Set(ports.keys) : Set(ports.keys.filter { $0 >= Self.minimumPort })
             guard let port = eligible.min() else { continue }
             if !showAll && isNoise(pid) { continue }
             portOwners[pid] = port
@@ -84,12 +87,22 @@ final class ProcessScanner: @unchecked Sendable {
         let pids = Array(portOwners.keys) + Array(background)
         resolveWorkingDirectories(for: pids)
 
+        // `localhost` resolves to one of the addresses, so a shared port needs the exact one.
+        var portCounts: [Int: Int] = [:]
+        for port in portOwners.values { portCounts[port, default: 0] += 1 }
+        func host(of pid: Int32) -> String? {
+            guard let port = portOwners[pid], portCounts[port, default: 0] > 1,
+                  let addresses = listening[pid]?[port], addresses.count == 1 else { return nil }
+            return addresses.first
+        }
+
         return pids.compactMap { pid in
             guard let row = table[pid], let command = commands[pid] else { return nil }
             let rule = LabelHeuristics.rule(for: command)
             return ScannedProcess(
                 pid: pid,
                 port: portOwners[pid],
+                host: host(of: pid),
                 label: rule?.label ?? command.executable,
                 isWebServer: rule?.isWeb ?? false,
                 destination: LabelHeuristics.destination(for: command, cwd: cwdCache[pid]),
@@ -125,21 +138,27 @@ final class ProcessScanner: @unchecked Sendable {
 
     // MARK: - lsof
 
-    /// `lsof -iTCP -sTCP:LISTEN -P -n`, in field mode for reliable parsing.
-    private static func listeningPorts() -> [Int32: Set<Int>] {
-        guard let output = Subprocess.run("/usr/sbin/lsof", ["-iTCP", "-sTCP:LISTEN", "-P", "-n", "-F", "pn"]) else { return [:] }
-        var result: [Int32: Set<Int>] = [:]
+    /// `lsof -iTCP -sTCP:LISTEN -P -n`, in field mode for reliable parsing. Maps each PID's
+    /// ports to the loopback-reachable addresses they're bound to, as URL hosts.
+    private static func listeningPorts() -> [Int32: [Int: Set<String>]] {
+        guard let output = Subprocess.run("/usr/sbin/lsof", ["-iTCP", "-sTCP:LISTEN", "-P", "-n", "-F", "ptn"]) else { return [:] }
+        var result: [Int32: [Int: Set<String>]] = [:]
         var pid: Int32?
+        var isIPv6 = false
         for line in output.split(separator: "\n") {
             guard let field = line.first else { continue }
             let value = line.dropFirst()
             switch field {
             case "p":
                 pid = Int32(value)
+            case "t":
+                isIPv6 = value == "IPv6"
             case "n":
                 guard let pid, let colon = value.lastIndex(of: ":"),
                       let port = Int(value[value.index(after: colon)...]) else { continue }
-                result[pid, default: []].insert(port)
+                let address = String(value[..<colon])
+                let host = address != "*" ? address : isIPv6 ? "[::1]" : "127.0.0.1"
+                result[pid, default: [:]][port, default: []].insert(host)
             default:
                 continue
             }

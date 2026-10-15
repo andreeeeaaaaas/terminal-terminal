@@ -20,7 +20,7 @@ enum TerminalTerminalMain {
         if arguments.contains("--scan") {
             // Prints what the board would show, for tuning label heuristics.
             for process in ProcessScanner().scan(showAll: arguments.contains("--all")) {
-                let gate = process.port.map(String.init) ?? "--"
+                let gate = process.port.map { port in process.host.map { "\($0):\(port)" } ?? String(port) } ?? "--"
                 print(gate, process.label, process.isWebServer ? "web" : "-", process.destination, process.pid, Int(process.uptime / 60), "min", process.cpu, separator: "\t")
             }
             exit(0)

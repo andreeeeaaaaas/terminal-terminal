@@ -42,7 +42,7 @@ struct BoardEntry: Identifiable, Equatable {
     /// A web server's page, while the row is live.
     var url: URL? {
         guard isLive, process.isWebServer, let port = process.port else { return nil }
-        return URL(string: "http://localhost:\(port)")
+        return URL(string: "http://\(process.host ?? "localhost"):\(port)")
     }
 
     var canTerminate: Bool {
