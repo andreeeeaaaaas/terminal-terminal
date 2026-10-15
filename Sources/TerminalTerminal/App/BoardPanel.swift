@@ -24,6 +24,15 @@ final class BoardPanel: NSPanel {
 
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { false }
+
+    /// Brings the panel to the active Space and back onto every Space. A long-running board can
+    /// end up on just one Space despite `.canJoinAllSpaces`, and AppKit doesn't notice.
+    func rejoinAllSpaces() {
+        let behavior = collectionBehavior
+        collectionBehavior = behavior.subtracting(.canJoinAllSpaces).union(.moveToActiveSpace)
+        orderFrontRegardless()
+        collectionBehavior = behavior
+    }
 }
 
 /// Places, sizes and shows the board panel, and remembers where the user dragged it.
@@ -36,6 +45,7 @@ final class BoardPanelController {
     private var hasPlaced = false
     private var pendingShrink: DispatchWorkItem?
     private var moveObserver: NSObjectProtocol?
+    private var spaceObserver: NSObjectProtocol?
     /// Mouse location and panel origin when the current drag began, in screen coordinates.
     private var dragStart: (mouse: NSPoint, origin: NSPoint)?
 
@@ -69,6 +79,11 @@ final class BoardPanelController {
         ) { [weak self] _ in
             MainActor.assumeIsolated { self?.panelDidMove() }
         }
+        spaceObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.activeSpaceDidChangeNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.activeSpaceDidChange() }
+        }
     }
 
     var isVisible: Bool { panel.isVisible }
@@ -78,6 +93,7 @@ final class BoardPanelController {
         if !hasPlaced { panel.contentView?.layoutSubtreeIfNeeded() }
         if !hasPlaced { place() }
         panel.orderFrontRegardless()
+        if !panel.isOnActiveSpace { panel.rejoinAllSpaces() }
     }
 
     func hide() {
@@ -146,6 +162,10 @@ final class BoardPanelController {
         // The shadow traces the window's pixels, which SwiftUI redraws after this returns.
         // Retake it then, or it keeps the previous board's outline.
         DispatchQueue.main.async { [weak self] in self?.panel.invalidateShadow() }
+    }
+
+    private func activeSpaceDidChange() {
+        if isVisible && !panel.isOnActiveSpace { panel.rejoinAllSpaces() }
     }
 
     private func panelDidMove() {
