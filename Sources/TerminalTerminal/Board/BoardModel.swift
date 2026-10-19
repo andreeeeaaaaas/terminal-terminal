@@ -77,7 +77,7 @@ final class BoardModel: ObservableObject {
     /// Not called for rows that appear because a setting changed.
     var onArrival: ((_ isFirst: Bool) -> Void)?
 
-    static let boardingDuration: TimeInterval = 5
+    static let boardingDuration: TimeInterval = 3
     static let departedHold: TimeInterval = 4
     static let clearingDuration: TimeInterval = 1.4
     static let terminateGrace: TimeInterval = 3
