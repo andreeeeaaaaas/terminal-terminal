@@ -104,7 +104,7 @@ struct BoardRow: View {
                 // A tap, not a button, so a drag that starts here still moves the board.
                 .onTapGesture { openURL(url) }
                 .background {
-                    if !isStaticRender { HoverTracker(isHovering: $isHoveringOpen) }
+                    if !isStaticRender { HoverTracker(isHovering: $isHoveringOpen, cursor: .pointingHand) }
                 }
                 .onChange(of: isHoveringOpen) { hovering in
                     if hovering { gateFlipsQuietly = true }
