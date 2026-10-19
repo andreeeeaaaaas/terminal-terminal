@@ -38,7 +38,7 @@ swift run                          # or from the terminal
 - **Click the menu bar plane** to show or hide the board.
 - **⌘-click or right-click it**, or click the gear on the board, for settings: board style, display (flap, LED, pixel, plain), accent colour, seconds, refresh interval, show all ports, appear on new server, reset the board position, quit. Picking a style resets display and accent to that style's own.
 - **Drag the board** anywhere. It remembers where you put it.
-- **Hover a web server's GATE and click** to open it in your browser. Recognised dev servers (Vite, Next, Astro, Django, …) flip their port to OPEN; databases and plain interpreters don't.
+- **Hover a web server's GATE or FLIGHT and click** to open it in your browser. Recognised dev servers (Vite, Next, Astro, Django, …) flip their port to OPEN; databases and plain interpreters don't.
 - **Hover a row and click ×** to send SIGTERM. If the process is still alive after 3 seconds, the row turns DELAYED and asks before sending SIGKILL.
 
 The board appears on its own when the first server starts, and stays until you hide it with the menu bar plane or the – button on the board. Turn on **Appear on new server** in settings to bring it back whenever another server starts, even after hiding it.
@@ -77,7 +77,7 @@ LabelRule("DJANGO", web: true, .phrase("runserver")),  // a substring of the com
 LabelRule("JUPYTER", web: true, .tokenPrefix("jupyter")),  // jupyter, jupyter-lab, …
 ```
 
-The first match wins, so put frameworks above the interpreters that run them. A matching rule also makes a portless process count as a background task. `web: true` marks a server whose port serves a page: hovering its GATE flips it to OPEN, and clicking opens `http://localhost:<port>`. To hide something, add it to `hiddenExecutables` or `hiddenTokenFragments` in the same file.
+The first match wins, so put frameworks above the interpreters that run them. A matching rule also makes a portless process count as a background task. `web: true` marks a server whose port serves a page: hovering its GATE or FLIGHT flips GATE to OPEN, and clicking there opens `http://localhost:<port>`. To hide something, add it to `hiddenExecutables` or `hiddenTokenFragments` in the same file.
 
 To check what the board would show without opening it:
 

@@ -10,8 +10,8 @@ struct BoardRow: View {
     var onCancelForceQuit: () -> Void
 
     @State private var isHovering = false
-    @State private var isHoveringGate = false
-    /// Set on the first hover over GATE, after it has flipped in with the row.
+    @State private var isHoveringOpen = false
+    /// Set on the first hover over GATE or FLIGHT, after GATE has flipped in with the row.
     @State private var gateFlipsQuietly = false
     @Environment(\.flapStartsSettled) private var isStaticRender
     @Environment(\.boardTheme) private var theme
@@ -20,7 +20,7 @@ struct BoardRow: View {
     private static let openText = "OPEN\(FlapGlyphs.openArrow)"
 
     private var showsOpen: Bool {
-        entry.url != nil && (isHoveringGate || previewsOpen)
+        entry.url != nil && (isHoveringOpen || previewsOpen)
     }
 
     var body: some View {
@@ -93,22 +93,23 @@ struct BoardRow: View {
         }
     }
 
-    /// Covers GATE: hovering flips it to OPEN, clicking opens the page.
+    /// Covers GATE and FLIGHT: hovering flips GATE to OPEN, clicking opens the page.
     @ViewBuilder
     private var openControl: some View {
         if let url = entry.url {
             Color.clear
-                .frame(width: theme.metrics.width(ofCells: theme.cells(.gate)))
+                .frame(width: theme.metrics.width(ofCells: theme.cells(.gate)) + BoardColumn.gap
+                    + theme.metrics.width(ofCells: theme.cells(.flight)))
                 .contentShape(Rectangle())
                 // A tap, not a button, so a drag that starts here still moves the board.
                 .onTapGesture { openURL(url) }
                 .background {
-                    if !isStaticRender { HoverTracker(isHovering: $isHoveringGate) }
+                    if !isStaticRender { HoverTracker(isHovering: $isHoveringOpen) }
                 }
-                .onChange(of: isHoveringGate) { hovering in
+                .onChange(of: isHoveringOpen) { hovering in
                     if hovering { gateFlipsQuietly = true }
                 }
-                .onDisappear { isHoveringGate = false }
+                .onDisappear { isHoveringOpen = false }
                 .accessibilityElement()
                 .accessibilityLabel("Open \(entry.process.label) in browser")
                 .accessibilityAddTraits(.isButton)
