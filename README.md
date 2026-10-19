@@ -13,7 +13,7 @@ A floating split-flap departure board for macOS that shows your running dev serv
 
 Runs on macOS 13 or later, on Apple silicon and Intel.
 
-1. Download `TerminalTerminal-<version>.zip` from the latest GitHub release and unzip it.
+1. Download `TerminalTerminal-<version>.zip` from the [latest GitHub release](https://github.com/andreeeeaaaaas/terminal-terminal/releases) and unzip it.
 2. Move **Terminal Terminal** to Applications and open it.
 3. The app isn't notarised by Apple, so macOS blocks the first launch. Open **System Settings → Privacy & Security**, scroll down and click **Open Anyway**. Or run:
 
@@ -23,17 +23,7 @@ Runs on macOS 13 or later, on Apple silicon and Intel.
 
 It has no Dock icon: look for the plane in the menu bar.
 
-## Build from source
-
-Needs Xcode 26 or later to build (the Liquid Glass settings use the macOS 26 SDK); the app still runs on macOS 13. No dependencies.
-
-```sh
-open Package.swift                 # in Xcode, then Run (⌘R)
-swift run                          # or from the terminal
-./scripts/bundle.sh                # or build a universal "build/Terminal Terminal.app"
-```
-
-## Use it
+## Usage
 
 - **Click the menu bar plane** to show or hide the board.
 - **⌘-click or right-click it**, or click the gear on the board, for settings: board style, display (flap, LED, pixel, plain), accent colour, seconds, refresh interval, show all ports, appear on new server, reset the board position, quit. Picking a style resets display and accent to that style's own.
@@ -66,6 +56,16 @@ Hidden as noise:
 - Wrappers: `npm run dev` shows once, as the server it starts.
 
 **Show all ports** in settings turns off the noise filter for port owners.
+
+## Build from source
+
+Needs Xcode 26 or later to build (the Liquid Glass settings use the macOS 26 SDK); the app still runs on macOS 13. No dependencies.
+
+```sh
+open Package.swift                 # in Xcode, then Run (⌘R)
+swift run                          # or from the terminal
+./scripts/bundle.sh                # or build a universal "build/Terminal Terminal.app"
+```
 
 ## Extending the labels
 
