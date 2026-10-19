@@ -9,7 +9,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let demo: Demo?
     private var boardController: BoardPanelController!
     private var statusItem: NSStatusItem!
-    private var settingsBubble: SettingsBubble!
+    /// Built on first open: it's hidden at launch, when the board is busy flipping in.
+    private lazy var settingsBubble = makeSettingsBubble()
     private var settingsObservers: [AnyCancellable] = []
     /// Click and key monitors that close settings, only while it's open.
     private var settingsMonitors: [Any] = []
@@ -36,24 +37,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 model: model,
                 settings: settings,
                 opensLinks: demo == nil,
+                waitsForFirstScan: demo == nil,
                 onOpenSettings: { [unowned self] gear in showSettings(from: .board(gear)) },
                 onHide: { [unowned self] in boardController.hide() }
             )
         }
 
         setUpStatusItem()
-        setUpSettings()
 
         model.onArrival = { [unowned self] isFirst in
             if isFirst || settings.showOnArrival { boardController.show() }
         }
-        boardController.show()
         if let demo {
+            boardController.show()
             Task { [model] in
                 await demo.run(model: model, settings: settings)
                 NSApp.terminate(nil)
             }
         } else {
+            // Show once the first scan lands, so the board appears whole, flipping in header
+            // and rows together, instead of blank and then growing a moment later.
+            model.onFirstScan = { [unowned self] in boardController.show() }
             model.start()
         }
 
@@ -74,8 +78,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         button.toolTip = "Terminal Terminal: click to show or hide, ⌘-click for settings"
     }
 
-    private func setUpSettings() {
-        settingsBubble = SettingsBubble { [unowned self] in
+    private func makeSettingsBubble() -> SettingsBubble {
+        let bubble = SettingsBubble { [unowned self] in
             SettingsView(
                 settings: settings,
                 onResetPosition: { [unowned self] in
@@ -85,10 +89,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 onQuit: { NSApp.terminate(nil) }
             )
         }
-        settingsBubble.onClose = { [unowned self] in
+        bubble.onClose = { [unowned self] in
             settingsClosedAt = Date()
             stopWatchingForDismissal()
         }
+        return bubble
     }
 
     @objc private func statusItemClicked() {
@@ -162,12 +167,16 @@ private struct ThemedBoard: View {
     @ObservedObject var settings: Settings
     /// False in demos, whose ports are made up.
     var opensLinks: Bool
+    /// Renders nothing until the first scan, so the board's cells don't start flipping unseen.
+    var waitsForFirstScan: Bool
     var onOpenSettings: (NSView) -> Void
     var onHide: () -> Void
 
     var body: some View {
-        BoardView(model: model, onOpenSettings: onOpenSettings, onHide: onHide)
-            .environment(\.boardTheme, settings.theme)
-            .environment(\.openURL, OpenURLAction { [opensLinks] _ in opensLinks ? .systemAction : .handled })
+        if model.hasScanned || !waitsForFirstScan {
+            BoardView(model: model, onOpenSettings: onOpenSettings, onHide: onHide)
+                .environment(\.boardTheme, settings.theme)
+                .environment(\.openURL, OpenURLAction { [opensLinks] _ in opensLinks ? .systemAction : .handled })
+        }
     }
 }

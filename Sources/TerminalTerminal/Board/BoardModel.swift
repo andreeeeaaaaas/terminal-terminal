@@ -70,12 +70,16 @@ struct BoardEntry: Identifiable, Equatable {
 @MainActor
 final class BoardModel: ObservableObject {
     @Published private(set) var entries: [BoardEntry] = []
+    /// False until the first scan lands, so the board can wait to appear with its rows.
+    @Published private(set) var hasScanned = false
     /// PIDs whose GATE shows OPEN in a static board, as if hovered.
     private(set) var previewsOpen: Set<Int32> = []
 
     /// Called when new rows arrive after launch, with whether the board had no live rows before.
     /// Not called for rows that appear because a setting changed.
     var onArrival: ((_ isFirst: Bool) -> Void)?
+    /// Called once, after the first scan's rows are on the board.
+    var onFirstScan: (() -> Void)?
 
     static let boardingDuration: TimeInterval = 3
     static let departedHold: TimeInterval = 4
@@ -90,7 +94,6 @@ final class BoardModel: ObservableObject {
     private var loop: Task<Void, Never>?
     private var isScanning = false
     private var lastScan = Date.distantPast
-    private var hasScanned = false
     /// After a filter change, rows that drop out collapse without a departure.
     private var quietNextScan = false
 
@@ -188,9 +191,15 @@ final class BoardModel: ObservableObject {
             updated.append(BoardEntry(process: process, phase: phase, lastActive: now, startedAt: now - process.uptime))
         }
 
+        guard hasScanned else {
+            // The board appears with these rows, so they flip in without a row animation.
+            entries = updated
+            hasScanned = true
+            onFirstScan?()
+            return
+        }
         publish(updated)
-        if hasScanned, !isQuiet, !arrivals.isEmpty { onArrival?(wasEmpty) }
-        hasScanned = true
+        if !isQuiet, !arrivals.isEmpty { onArrival?(wasEmpty) }
     }
 
     private func advancePhases() {

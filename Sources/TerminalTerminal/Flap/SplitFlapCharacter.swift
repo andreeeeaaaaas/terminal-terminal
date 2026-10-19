@@ -6,6 +6,10 @@ import SwiftUI
 /// In the flap style each step is two half-turns: the top flap (old glyph) falls forward to
 /// reveal the new glyph's top half, then the bottom flap (new glyph) lands over the old
 /// bottom half. Plain and dot-matrix styles swap glyphs in place at the same rhythm.
+///
+/// A flip is stored once, when it starts, and each frame is worked out from the time since,
+/// on the display's clock. Cells used to run their own loops of state changes, which pinned
+/// the main thread for seconds when a whole board flipped in.
 struct SplitFlapCharacter: View {
     let target: Character
     var color: Color
@@ -20,14 +24,11 @@ struct SplitFlapCharacter: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.boardTheme) private var theme
 
-    @State private var current: Character
-    @State private var next: Character
-    @State private var currentInverted = false
-    @State private var nextInverted = false
-    @State private var topAngle: Double = 0
-    @State private var bottomAngle: Double = 90
+    @State private var flip: Flip
+    /// Pauses the timeline between flips.
+    @State private var isSettled = true
 
-    private static let halfTurn: Double = 0.055
+    fileprivate static let halfTurn: Double = 0.055
 
     init(target: Character, color: Color, delay: Double = 0, scrambles: Bool = true, inverted: Bool = false, startsSettled: Bool = false) {
         self.target = target
@@ -35,93 +36,64 @@ struct SplitFlapCharacter: View {
         self.delay = delay
         self.scrambles = scrambles
         self.inverted = inverted
-        let initial: Character = startsSettled ? target : " "
-        _current = State(initialValue: initial)
-        _next = State(initialValue: initial)
-        _currentInverted = State(initialValue: startsSettled && inverted)
-        _nextInverted = State(initialValue: startsSettled && inverted)
-    }
-
-    private struct Target: Equatable {
-        let glyph: Character
-        let inverted: Bool
+        _flip = State(initialValue: Flip(resting: startsSettled ? Face(glyph: target, inverted: inverted) : Face(glyph: " ", inverted: false)))
     }
 
     var body: some View {
-        face.task(id: Target(glyph: target, inverted: inverted)) { await flip(to: target, inverted: inverted) }
+        TimelineView(.animation(minimumInterval: 1.0 / 60, paused: isSettled)) { context in
+            // A paused timeline keeps its last frame's date, which can fall before the flip
+            // ended, so a settled cell shows the end state rather than working it out.
+            face(at: isSettled ? .infinity : context.date.timeIntervalSince(flip.start))
+        }
+        .task(id: Face(glyph: target, inverted: inverted)) { await start() }
     }
 
     @ViewBuilder
-    private var face: some View {
+    private func face(at elapsed: TimeInterval) -> some View {
         switch theme.cellStyle {
         case .flap:
+            let frame = flip.flapFrame(at: elapsed)
             FlapFace(
-                current: current, next: next, topAngle: topAngle, bottomAngle: bottomAngle, color: color,
-                currentInverted: currentInverted, nextInverted: nextInverted
+                current: frame.current.glyph, next: frame.next.glyph,
+                topAngle: frame.topAngle, bottomAngle: frame.bottomAngle, color: color,
+                currentInverted: frame.current.inverted, nextInverted: frame.next.inverted
             )
         case .plain:
-            PlainCell(glyph: current, color: currentInverted ? theme.accent : color)
+            let shown = flip.swappedFace(at: elapsed)
+            PlainCell(glyph: shown.glyph, color: shown.inverted ? theme.accent : color)
         case .dots(let shape):
-            DotMatrixCell(glyph: current, color: currentInverted ? theme.accent : color, shape: shape)
+            let shown = flip.swappedFace(at: elapsed)
+            DotMatrixCell(glyph: shown.glyph, color: shown.inverted ? theme.accent : color, shape: shape)
         }
     }
 
-    private func flip(to target: Character, inverted: Bool) async {
-        // A previous sequence may have been cancelled mid-turn. Snap to rest first.
-        withoutAnimation {
-            next = current
-            nextInverted = currentInverted
-            topAngle = 0
-            bottomAngle = 90
-        }
-        guard target != current || inverted != currentInverted else { return }
-
-        if reduceMotion {
-            withoutAnimation {
-                current = target
-                next = target
-                currentInverted = inverted
-                nextInverted = inverted
-            }
-            return
-        }
-
-        if delay > 0, !(await pause(delay)) { return }
-
-        var sequence = scrambles ? (0..<Int.random(in: 2...4)).map { _ in FlapGlyphs.random(excluding: target) } : []
-        sequence.append(target)
-
-        guard theme.cellStyle == .flap else {
-            for glyph in sequence {
+    private func start() async {
+        let target = Face(glyph: target, inverted: inverted)
+        let style = theme.cellStyle
+        let now = Date()
+        // A flip still running is cut short at the glyph it last landed on.
+        let shown = flip.landedFace(at: now.timeIntervalSince(flip.start), style: style)
+        guard shown != target, !reduceMotion else {
+            if shown != target || !isSettled {
                 withoutAnimation {
-                    current = glyph
-                    currentInverted = inverted
+                    flip = Flip(resting: target)
+                    isSettled = true
                 }
-                if glyph != target, !(await pause(Self.halfTurn * 1.4)) { return }
-            }
-            withoutAnimation {
-                next = target
-                nextInverted = inverted
             }
             return
         }
 
-        for glyph in sequence {
-            withoutAnimation {
-                next = glyph
-                nextInverted = inverted
-            }
-            withAnimation(.easeIn(duration: Self.halfTurn)) { topAngle = -90 }
-            guard await pause(Self.halfTurn) else { return }
-            withAnimation(.easeOut(duration: Self.halfTurn)) { bottomAngle = 0 }
-            guard await pause(Self.halfTurn) else { return }
-            withoutAnimation {
-                current = glyph
-                currentInverted = inverted
-                topAngle = 0
-                bottomAngle = 90
-            }
+        var steps = scrambles
+            ? (0..<Int.random(in: 2...4)).map { _ in Face(glyph: FlapGlyphs.random(excluding: target.glyph), inverted: target.inverted) }
+            : []
+        steps.append(target)
+        let next = Flip(from: shown, steps: steps, start: now, delay: delay)
+        withoutAnimation {
+            flip = next
+            isSettled = false
         }
+        guard await pause(next.duration(style)) else { return }
+        withoutAnimation { isSettled = true }
     }
 
     /// Sleeps for `seconds`. Returns false if the task was cancelled because the target changed.
@@ -140,6 +112,82 @@ struct SplitFlapCharacter: View {
         withTransaction(transaction, body)
     }
 }
+
+private struct Face: Equatable {
+    var glyph: Character
+    var inverted: Bool
+}
+
+/// A run from one face through `steps`, the last of which is the target.
+private struct Flip {
+    var from: Face
+    var steps: [Face]
+    var start: Date
+    var delay: Double
+
+    /// Flap: each step is two half-turns.
+    static let stepTime = 2 * SplitFlapCharacter.halfTurn
+    /// Plain and dots: each glyph before the target shows for this long.
+    static let swapTime = 1.4 * SplitFlapCharacter.halfTurn
+
+    struct FlapFrame {
+        var current: Face
+        var next: Face
+        var topAngle: Double = 0
+        var bottomAngle: Double = 90
+
+        static func resting(_ face: Face) -> FlapFrame { FlapFrame(current: face, next: face) }
+    }
+
+    init(from: Face, steps: [Face], start: Date, delay: Double) {
+        self.from = from
+        self.steps = steps
+        self.start = start
+        self.delay = delay
+    }
+
+    init(resting face: Face) {
+        self.init(from: face, steps: [], start: .distantPast, delay: 0)
+    }
+
+    var target: Face { steps.last ?? from }
+
+    func duration(_ style: BoardTheme.CellStyle) -> Double {
+        style == .flap
+            ? delay + Double(steps.count) * Self.stepTime
+            : delay + Double(max(steps.count - 1, 0)) * Self.swapTime
+    }
+
+    /// Eases in as the top flap falls, then out as the bottom one lands.
+    func flapFrame(at elapsed: TimeInterval) -> FlapFrame {
+        let time = elapsed - delay
+        guard time >= 0, !steps.isEmpty else { return .resting(from) }
+        guard time < Double(steps.count) * Self.stepTime else { return .resting(target) }
+        let index = Int(time / Self.stepTime)
+        let current = index == 0 ? from : steps[index - 1]
+        let half = SplitFlapCharacter.halfTurn
+        let phase = time - Double(index) * Self.stepTime
+        if phase < half {
+            let progress = phase / half
+            return FlapFrame(current: current, next: steps[index], topAngle: -90 * progress * progress)
+        }
+        let remaining = 1 - (phase - half) / half
+        return FlapFrame(current: current, next: steps[index], topAngle: -90, bottomAngle: 90 * remaining * remaining)
+    }
+
+    func swappedFace(at elapsed: TimeInterval) -> Face {
+        let time = elapsed - delay
+        guard time >= 0, !steps.isEmpty else { return from }
+        guard time < Double(steps.count - 1) * Self.swapTime else { return target }
+        return steps[Int(time / Self.swapTime)]
+    }
+
+    /// The last glyph fully showing, where an interrupted flip restarts from.
+    func landedFace(at elapsed: TimeInterval, style: BoardTheme.CellStyle) -> Face {
+        style == .flap ? flapFrame(at: elapsed).current : swappedFace(at: elapsed)
+    }
+}
+
 
 /// A stateless rendering of one cell at a given point in a flip. Angles run from
 /// 0 to -90 for the falling top flap and from 90 to 0 for the landing bottom flap.
